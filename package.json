@@ -1,5 +1,5 @@
 {
-  "name": "js-gym",
+  "name": "static",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -9,7 +9,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@tensorflow/tfjs-node": "^0.2.3",
+    "d3-random": "^1.1.2",
+    "socket.io": "^2.2.0",
+    "socket.io-client": "^2.2.0",
     "superagent": "^4.1.0"
+  },
+  "devDependencies": {
+    "mocha": "^5.2.0"
   }
 }

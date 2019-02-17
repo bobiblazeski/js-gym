@@ -10,9 +10,9 @@ To download the code and install the requirements, you can run the following she
 $ git clone https://github.com/bobiblazeski/js-gym.git
 $ cd js-gym
 $ npm install
-$ virtualenv  -p python3 ./py/venv # optional
-$ source ./py/venv/bin/activate # optional
-$ pip install -r ./py/requirements.txt
+$ virtualenv  -p python3 ./env
+$ source ./venv/bin/activate
+$ pip install -r ./requirements.txt
 
 ```
 
@@ -23,9 +23,17 @@ The server runs in python.
 
 To start the server from the command line, run this:
 ``` sh
-$ python py/gym_http_server.py
+$ python server.py
 ```
 In a separate terminal, you can then try running the example node.js agent and see what happens:
 ``` sh
-$ node js/linear.js
+$ node train.js
+```
+
+Or you can work in your favorite browser:
+http://localhost:5000/
+
+If you want to see trained walker run:
+``` sh
+$ node play.js
 ```
