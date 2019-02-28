@@ -3,7 +3,7 @@ const ARS = (function () {
   if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
     ({API, N, Util} = {
       API: require('../api'),
-      N: require('../nial'),
+      N: require('nial'),
       Util: require('../util'),  
     });
     fs = require('fs');
@@ -54,7 +54,7 @@ const ARS = (function () {
 
   // Sort the rollouts by max(rPos, rNeg) & select deltas with best rewards
   const getRollouts = (positiveRewards, negativeRewards, deltas) => {
-    const scores = N.ints(HP.nbDeltas).reduce((acc, i) => {
+    const scores = N.til(HP.nbDeltas).reduce((acc, i) => {
       acc[i] = Math.max(positiveRewards[i], negativeRewards[i]);
       return acc;
     }, {});
@@ -82,7 +82,7 @@ const ARS = (function () {
     parameters) => {
     let epReward = 0, reward, done;
     let observation = await API.environmentReset(instanceId);
-    for (const stepNo of N.ints(maxSteps)) {
+    for (const stepNo of N.til(maxSteps)) {
       normalizer.observe(observation);
       observation = normalizer.normalize(observation);
       let action = act(observation, parameters);
@@ -100,7 +100,7 @@ const ARS = (function () {
     epNo = 0;
     const positiveRewards = [];
     const negativeRewards = [];
-    for (const k of N.ints(deltas.length)) {      
+    for (const k of N.til(deltas.length)) {      
       positiveRewards.push(await episode(instanceId, maxSteps, render,
         normalizer, perturb(parameters, deltas[k], true)));
       negativeRewards.push(await episode(instanceId, maxSteps, render,
@@ -112,7 +112,7 @@ const ARS = (function () {
   };
 
   const sampleDeltas = (shape) => {    
-    return N.ints(HP.nbDeltas).map(() => N.randn(shape));
+    return N.til(HP.nbDeltas).map(() => N.randn(shape));
   };
   
   const save = (normalizer, parameters,cycleNo, maxReward) => {
@@ -138,7 +138,7 @@ const ARS = (function () {
     let maxReward = -Infinity;
     let parameters = N.zeros([outputSize, inputSize]);
     const cycleLimit = Math.floor(maxEpisodes / HP.nbDeltas / 2);
-    for (const cycleNo of N.ints(cycleLimit)) {
+    for (const cycleNo of N.til(cycleLimit)) {
       const deltas = sampleDeltas(N.shape(parameters));
       const {epReward, positiveRewards, negativeRewards} = await cycle(instanceId,
         maxSteps, render, normalizer, parameters, deltas);
@@ -165,7 +165,7 @@ const ARS = (function () {
     normalizer.variance = saved.normalizer.variance;
 
     let parameters = saved.parameters;    
-    for (const epNo of N.ints(maxEpisodes)) {
+    for (const epNo of N.til(maxEpisodes)) {
       const epReward = await episode(instanceId, maxSteps, render,
         normalizer, parameters);
       console.log(`epNo: ${epNo} Reward: ${epReward}`);

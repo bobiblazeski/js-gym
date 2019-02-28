@@ -2,7 +2,7 @@
 const Util =  (function () {
    if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
     ({N, API, socket} = {
-      N : require('./nial'),
+      N : require('nial'),
       API: require('./api'),
       socket: require('socket.io-client')
         .connect('http://127.0.0.1:5000', {

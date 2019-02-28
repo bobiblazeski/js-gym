@@ -2,7 +2,7 @@ const RandomSearch = (function() {
   if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
     ({API, N, Util} = {
       API: require('../api'),
-      N: require('../nial'),
+      N: require('nial'),
       Util: require('../util'),  
     }); 
   }
@@ -18,11 +18,11 @@ const RandomSearch = (function() {
     let maxReward = -Infinity;
     let bestParameters = Util.createParameters([outputSize, inputSize]);
 
-    for (const epNo of N.ints(maxEpisodes)) {
+    for (const epNo of N.til(maxEpisodes)) {
       let parameters = Util.createParameters([outputSize, inputSize]);
       let epReward = 0, observation, reward, done;
       observation = await API.environmentReset(instanceId);
-      for (const stepNo of N.ints(maxSteps)) {
+      for (const stepNo of N.til(maxSteps)) {
         let action = actDiscrete(observation, parameters);
         ({observation, reward, done} =
           await Util.stepResponse(instanceId, action, render));

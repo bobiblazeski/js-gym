@@ -10,11 +10,9 @@
   "license": "ISC",
   "dependencies": {
     "d3-random": "^1.1.2",
+    "nial": "https://github.com/bobiblazeski/nial/tarball/master",
     "socket.io": "^2.2.0",
     "socket.io-client": "^2.2.0",
     "superagent": "^4.1.0"
-  },
-  "devDependencies": {
-    "mocha": "^5.2.0"
   }
 }

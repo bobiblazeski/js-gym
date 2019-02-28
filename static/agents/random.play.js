@@ -2,7 +2,7 @@ const RandomPlay = (function() {
   if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
     ({API, N, Util} = {
       API: require('../api'),
-      N: require('../nial'),
+      N: require('nial'),
       Util: require('../util'),  
     }); 
   }
@@ -10,10 +10,10 @@ const RandomPlay = (function() {
   const discrete = async (env, maxEpisodes, render) => {
     const {instanceId, actionSpace, maxSteps} = env;
     let maxReward = -Infinity;
-    for (const epNo of N.ints(maxEpisodes)) {
+    for (const epNo of N.til(maxEpisodes)) {
       let epReward = 0, observation, reward, done;
       observation = await API.environmentReset(instanceId);
-      for (const stepNo of N.ints(maxSteps)) {
+      for (const stepNo of N.til(maxSteps)) {
         let action = Util.randomInt(0, actionSpace.n);
         ({observation, reward, done} =
           await Util.stepResponse(instanceId, action, render));

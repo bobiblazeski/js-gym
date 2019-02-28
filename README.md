@@ -10,7 +10,7 @@ To download the code and install the requirements, you can run the following she
 $ git clone https://github.com/bobiblazeski/js-gym.git
 $ cd js-gym
 $ npm install
-$ virtualenv  -p python3 ./env
+$ virtualenv  -p python3 ./venv
 $ source ./venv/bin/activate
 $ pip install -r ./requirements.txt
 
