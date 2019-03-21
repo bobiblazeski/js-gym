@@ -1,9 +1,9 @@
 const RandomSearch = (function() {
   if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
     ({API, N, Util} = {
-      API: require('../api'),
+      API: require('../lib/api'),
       N: require('nial'),
-      Util: require('../util'),  
+      Util: require('../lib/util'),  
     }); 
   }
 

@@ -1,10 +1,14 @@
 const DDPG = (function () {
   if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-    ({N, tf} = {
+    ({API, N, Util, Deque, tf} = {
+      API: require('../lib/api'),
       N: require('nial'),
+      Util: require('../lib/util'),
+      Deque: require('../lib/deque'),
       tf: require('@tensorflow/tfjs-node'),  
-    });
-  }
+      //tf: require('@tensorflow/tfjs-node-gpu'),
+    });    
+  }  
 
   class OUNoise {
     constructor(size, mu=0., theta=0.15, sigma=0.05) {
@@ -213,7 +217,7 @@ const DDPG = (function () {
         maxReward =  epReward;
       }
     }
-    return {maxReward, bestParameters};
+    return {maxReward};
   };
 
   return {

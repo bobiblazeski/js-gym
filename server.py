@@ -146,4 +146,6 @@ def index():
 envs = Envs()
 # start the server with the 'run()' method
 if __name__ == '__main__':
+    print('Open your browser at http://localhost:5000')
     socketio.run(app)
+    
