@@ -21,7 +21,7 @@ const start  = async () => {
   // await Util.run('BipedalWalker-v2', ARS.continuous, 32 * 2000, false);
 
   console.log('DDPG');
-  await Util.run('BipedalWalker-v2', DDPG.continuous, 1000, false);
+  await Util.run('BipedalWalker-v2', DDPG.continuous, 100000, false);
   process.exit();
 }
 

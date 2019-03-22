@@ -1,5 +1,6 @@
 const DDPG = (function () {
-  if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+  const NODEJS = typeof module !== 'undefined' && typeof module.exports !== 'undefined';
+  if (NODEJS) {
     ({API, N, Util, Deque, tf} = {
       API: require('../lib/api'),
       N: require('nial'),
@@ -8,8 +9,9 @@ const DDPG = (function () {
       tf: require('@tensorflow/tfjs-node'),  
       //tf: require('@tensorflow/tfjs-node-gpu'),
     });    
-  }  
-
+  }
+  const SAVE_METHOD = NODEJS ? `file://${process.cwd()}/saves/ddpg/` : 'indexeddb://';
+  
   class OUNoise {
     constructor(size, mu=0., theta=0.15, sigma=0.05) {
       this.mu =  N.mul(mu, N.ones([size]));
@@ -98,26 +100,21 @@ const DDPG = (function () {
     ]
   });
 
-  const makeCritic = (inputShape, actionShape, d1=256, d2=256, d3=128) => tf.sequential({
-    layers: [
-      tf.layers.dense({units: d1, activation: 'LeakyReLU',
-                       inputShape: [inputShape+actionShape]}),
-      tf.layers.dense({units: d2, activation: 'LeakyReLU'}),
-      tf.layers.dense({units: d3, activation: 'LeakyReLU'}),
-      tf.layers.dense({units: 1}),
-    ]
-  });
+  // Can't use 'LeakyReLU' due to https://github.com/tensorflow/tfjs/issues/1093
+  const criticActivation = 'relu'; 
 
-  // const makeCritic = (inputShape, actionShape, l1=96, l2=96) => {
-  //   const stateInput = tf.input({shape: [inputShape]});
-  //   const actionInput = tf.input({shape: [actionShape]});
-  //   const fc1 = tf.layers.dense({units: l1, activation: 'relu'}).apply(stateInput);
-  //   const concat = tf.layers.concatenate().apply([fc1, actionInput]);
-  //   const fc2 = tf.layers.dense({units: l2, activation: 'relu'}).apply(concat);
-  //   const output = tf.layers.dense({units: 1}).apply(fc2);
-  //   const model = tf.LayersModel({inputs: [stateInput, actionInput], outputs: output});
-  //   return model;
-  // }
+  const makeCritic = (inputShape, actionShape, ds=256, d2=256, d3=128) => {
+    const stateInput = tf.input({shape: [inputShape]});
+    const actionInput = tf.input({shape: [actionShape]});
+    const fcs1 = tf.layers.dense({units: ds, activation: criticActivation})
+                   .apply(stateInput);
+    const concat = tf.layers.concatenate().apply([fcs1, actionInput]);
+    const fc2 = tf.layers.dense({units: d2, activation: criticActivation}).apply(concat);
+    const fc3 = tf.layers.dense({units: d3, activation: criticActivation}).apply(fc2);
+    const output = tf.layers.dense({units: 1}).apply(fc3);
+    const model = tf.model({inputs: [stateInput, actionInput], outputs: output});
+    return model;
+  }
 
   class DDPG {
     constructor(stateSize, actionSize, epsilon=1.0, 
@@ -139,8 +136,11 @@ const DDPG = (function () {
 
     act (state, addNoise=true) {
       return tf.tidy(() => {
-        const action = tf.squeeze(this.actor.predict(tf.tensor([state])));
-        return addNoise ? action.add(this.noise.sample()) : action;
+        let action = tf.squeeze(this.actor.predict(tf.tensor([state])));
+        if (addNoise) {
+          action = action.add(this.noise.sample());
+        }
+        return action.clipByValue(-1, 1);
       });
     }
 
@@ -153,13 +153,13 @@ const DDPG = (function () {
       tf.tidy(() => {
         // Get predicted next-state actions and Q values from target models
         const actionsNext = this.actorTarget.predict(nextStates)
-        const qTargetsNext = this.criticTarget.predict(tf.concat([nextStates, actionsNext], 1));
+        const qTargetsNext = this.criticTarget.predict([nextStates, actionsNext]);
         
         // Critic update
         this.criticOptimizer.minimize(() => {
           // Compute Q targets for current states (y-i)
           const qTargets = tf.add(rewards, tf.mul(tf.mul(gamma, qTargetsNext), tf.sub(1, dones)));
-          const qExpected = this.critic.predict(tf.concat([states, actions], 1));
+          const qExpected = this.critic.predict([states, actions]);
           const criticLoss = tf.losses.meanSquaredError(qExpected, qTargets);
           // torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 1)
           return criticLoss;
@@ -167,8 +167,7 @@ const DDPG = (function () {
         // Actor update
         this.actorOptimizer.minimize(() => {
           const actionsPred = this.actor.predict(states);
-          //const actorLoss = -this.critic(states, actionsPred).mean();
-          const actorLoss = this.critic.predict(tf.concat([states, actionsPred], 1)).mean().mul(-1.);
+          const actorLoss = this.critic.predict([states, actionsPred]).mean().mul(-1.);
           return actorLoss;
         });
       });
@@ -178,6 +177,21 @@ const DDPG = (function () {
       // Noise update
       this.epsilon -= epsilonDecay;
       this.noise.reset();
+    }
+
+    async save(infix) {
+      //console.log(SAVE_METHOD + 'actor_' + infix);
+      await this.actor.save(SAVE_METHOD + infix + '_actor');
+      await this.critic.save(SAVE_METHOD + infix + '_critic');
+    }
+
+    async load(infix) {
+      const aPath = `${SAVE_METHOD}actor_${infix}/model.json`;
+      const cPath = `${SAVE_METHOD}critic_${infix}/model.json`;
+      this.actor = await tf.loadLayersModel(aPath);
+      this.critic = await tf.loadLayersModel(cPath);
+      hardUpdate(this.actor, this.actorTarget);
+      hardUpdate(this.critic, this.criticTarget);
     }
   }
   
@@ -207,10 +221,11 @@ const DDPG = (function () {
     const outputSize = actionSpace.shape[0];
     const buffer = new ReplayBuffer(BUFFER_SIZE, BATCH_SIZE);
     const agent = new DDPG(inputSize, outputSize);
+    // await agent.load(530);
     let maxReward = -Infinity;
     for (const epNo of N.til(maxEpisodes)) {
       let epReward = 0, observation, reward, done;
-      const reward_list = [];
+      let stepsTaken  = 0;
       observation = await API.environmentReset(instanceId);
       for (const stepNo of N.til(maxSteps)) {
         let action = await agent.act(observation).data();
@@ -225,12 +240,16 @@ const DDPG = (function () {
         learn(agent, buffer, epNo, stepNo);
         epReward += reward;
         
-        reward_list.push(reward);
+        ++stepsTaken;
         if (done) break;
       }
-      console.log(`EpNo ${epNo}  epReward ${epReward} reward_list ${reward_list.length}`);
+      epReward /= stepsTaken;
+      console.log(`EpNo:${epNo}, epReward:${epReward},stepsTaken:${stepsTaken}`);
       if (epReward > maxReward) {
         maxReward =  epReward;
+        await agent.save(epNo);
+      } else if (epNo % 10 === 0) {
+        await agent.save('last');
       }
     }
     return {maxReward};
