@@ -91,39 +91,46 @@ const DDPG = (function () {
     });
   }
 
-  const makeActor = (inputShape, outputShape, l1=96, l2=96) => tf.sequential({
+  const makeActor = (inputShape, outputShape, fc=256) => tf.sequential({
     layers: [
-      tf.layers.dense({inputShape: [inputShape], units: l1, activation: 'relu'}),
-      tf.layers.dense({units: l2, activation: 'relu'}),
-      tf.layers.dense({units: outputShape, activation: 'softmax'}),
+      tf.layers.dense({inputShape: [inputShape], units: fc, activation: 'relu'}),
+      tf.layers.dense({units:  outputShape, activation: 'tanh'}),
     ]
   });
 
-  const makeCritic = (inputShape, actionShape, l1=96, l2=96) => tf.sequential({
+  const makeCritic = (inputShape, actionShape, d1=256, d2=256, d3=128) => tf.sequential({
     layers: [
-      tf.layers.dense({inputShape: [inputShape+actionShape], 
-        units: l1, activation: 'relu'}),
-      tf.layers.dense({units: l2, activation: 'relu'}),
-      tf.layers.dense({units: 1, activation: 'tanh'}),
+      tf.layers.dense({units: d1, activation: 'LeakyReLU',
+                       inputShape: [inputShape+actionShape]}),
+      tf.layers.dense({units: d2, activation: 'LeakyReLU'}),
+      tf.layers.dense({units: d3, activation: 'LeakyReLU'}),
+      tf.layers.dense({units: 1}),
     ]
   });
+
+  // const makeCritic = (inputShape, actionShape, l1=96, l2=96) => {
+  //   const stateInput = tf.input({shape: [inputShape]});
+  //   const actionInput = tf.input({shape: [actionShape]});
+  //   const fc1 = tf.layers.dense({units: l1, activation: 'relu'}).apply(stateInput);
+  //   const concat = tf.layers.concatenate().apply([fc1, actionInput]);
+  //   const fc2 = tf.layers.dense({units: l2, activation: 'relu'}).apply(concat);
+  //   const output = tf.layers.dense({units: 1}).apply(fc2);
+  //   const model = tf.LayersModel({inputs: [stateInput, actionInput], outputs: output});
+  //   return model;
+  // }
 
   class DDPG {
-    constructor(stateSize, actionSize, fc1Units=96, fc2Units=96,
-        epsilon=1.0, lrActor=1e-3, lrCritic=1e-3, weightDecay=0) {
+    constructor(stateSize, actionSize, epsilon=1.0, 
+        lrActor=LR_ACTOR, lrCritic=LR_CRITIC, weightDecay=0) {
       this.stateSize = stateSize;
       this.actionSize = actionSize;
       this.epsilon = epsilon;
       this.weightDecay = weightDecay;
       this.noise = new OUNoise(actionSize);
-      this.actor = makeActor(stateSize, actionSize, fc1Units=fc1Units,
-        fc2Units=fc2Units);
-      this.actorTarget = makeActor(stateSize, actionSize, fc1Units=fc1Units,
-        fc2Units=fc2Units);
-      this.critic =makeCritic(stateSize, actionSize, fc1Units=fc1Units,
-        fc2Units=fc2Units);
-      this.criticTarget =makeCritic(stateSize, actionSize, fc1Units=fc1Units,
-        fc2Units=fc2Units);
+      this.actor = makeActor(stateSize, actionSize);
+      this.actorTarget = makeActor(stateSize, actionSize);
+      this.critic =makeCritic(stateSize, actionSize);
+      this.criticTarget =makeCritic(stateSize, actionSize);
       this.actorOptimizer = tf.train.adam(lrActor);
       this.criticOptimizer = tf.train.adam(lrCritic);
       hardUpdate(this.actor, this.actorTarget);
@@ -141,7 +148,7 @@ const DDPG = (function () {
       this.noise.reset();
     }
 
-    learn(experiences, gamma, tau=1e-3, epsilonDecay=1e-6) {
+    learn(experiences, gamma, tau=TAU, epsilonDecay=1e-6) {
       const {states, actions, rewards, nextStates, dones} = experiences;
       tf.tidy(() => {
         // Get predicted next-state actions and Q values from target models
@@ -174,14 +181,20 @@ const DDPG = (function () {
     }
   }
   
-  const MIN_BUFFER_SIZE = 1e3;
-  const UPDATE_EVERY = 10;
-  const GAMMA = 0.99;
   const BUFFER_SIZE = 1e6;
-  const BATCH_SIZE = 32;
+  const BATCH_SIZE = 128;
+  const GAMMA = 0.99;
+  const TAU = 1e-3;
+  const LR_ACTOR = 1e-4;
+  const LR_CRITIC = 3e-4;
+  //const WEIGHT_DECAY = 0.0001;
+  // const MIN_BUFFER_SIZE = 1e3;
+  // const UPDATE_EVERY = 10;
+  
+  
 
   const learn = (agent, buffer, stepNo) => {
-    if (buffer.length > MIN_BUFFER_SIZE && stepNo % UPDATE_EVERY == 0) {
+    if (buffer.length > BATCH_SIZE) {
       const experiences = buffer.sample();
       agent.learn(experiences, GAMMA);
     }
@@ -197,6 +210,7 @@ const DDPG = (function () {
     let maxReward = -Infinity;
     for (const epNo of N.til(maxEpisodes)) {
       let epReward = 0, observation, reward, done;
+      const reward_list = [];
       observation = await API.environmentReset(instanceId);
       for (const stepNo of N.til(maxSteps)) {
         let action = await agent.act(observation).data();
@@ -204,15 +218,17 @@ const DDPG = (function () {
         const prevState = observation;
         ({observation, reward, done} =
           await Util.stepResponse(instanceId, action, render));
+        //console.log(`EpNo ${epNo} stepNo ${stepNo} reward ${reward}`); 
         reward = Math.max(reward, -1);
         done = done ? 1. : 0.;
         buffer.add(prevState, action, reward, observation, done);
         learn(agent, buffer, epNo, stepNo);
         epReward += reward;
-        //console.log(`EpNo ${epNo} stepNo ${stepNo} reward ${reward}`); 
+        
+        reward_list.push(reward);
         if (done) break;
       }
-      console.log(`EpNo ${epNo}  epReward ${epReward}`); 
+      console.log(`EpNo ${epNo}  epReward ${epReward} reward_list ${reward_list.length}`);
       if (epReward > maxReward) {
         maxReward =  epReward;
       }
