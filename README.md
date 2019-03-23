@@ -25,15 +25,11 @@ To start the server from the command line, run this:
 ``` sh
 $ python server.py
 ```
-In a separate terminal, you can then try running the example node.js agent and see what happens:
+In a separate terminal, you can then try node.js agent:
 ``` sh
-$ node train.js
+$ node node/ars.train.js
+$ node node/ddpg.train.js
 ```
 
 Or you can work in your favorite browser:
 http://localhost:5000/
-
-If you want to see trained walker run:
-``` sh
-$ node play.js
-```
