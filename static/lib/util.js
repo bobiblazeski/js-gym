@@ -1,8 +1,7 @@
 
 const Util =  (function () {
    if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-    ({N, API, socket} = {
-      N : require('nial'),
+    ({API, socket} = {      
       API: require('./api'),
       socket: require('socket.io-client')
         .connect('http://127.0.0.1:5000', {
@@ -19,13 +18,6 @@ const Util =  (function () {
   });
   
   const deferred = {};
-
-  const createParameters = shape => N.sub(N.mul(N.randomUniform(shape), 2), 1);
-  
-  const randomInt = (min_, max_) => {
-    let min = Math.ceil(min_), max = Math.floor(max_);
-    return Math.floor(Math.random() * (max - min)) + min;
-  };
 
   const envInfo = async (envName) => {
     const instanceId = await API.environmentCreate(envName);
@@ -66,28 +58,11 @@ const Util =  (function () {
   socket.on('error', err => console.log(err) ||  deferred.reject(err));
   socket.on('connect', () => console.log('Connnected'));
 
-  const toArray = (t) => {
-    switch (t.shape.length) {
-      case 1:
-        return  Array.from(t.dataSync());
-      case 2:
-        const oneD = t.dataSync();
-        const [rows, cols] = t.shape;
-        return ints(rows)
-          .map((i) => Array.from(oneD.slice(i*cols, (i+1) *cols)));
-      default:
-        throw `Tensor is not 1d ${t}`;
-    }
-  };
-
-  return {
-    createParameters,
-    play,
-    randomInt,
+  return {    
+    play,    
     run,
     socket,
-    stepResponse,
-    toArray,
+    stepResponse,    
   }
 })();
 

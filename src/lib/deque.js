@@ -256,6 +256,4 @@ function getCapacity(capacity) {
   return Deque;
 })();
 
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-  module.exports = Deque;
-}
+export default Deque;

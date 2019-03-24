@@ -27,8 +27,7 @@ $ python server.py
 ```
 In a separate terminal, you can then try node.js agent:
 ``` sh
-$ node node/ars.train.js
-$ node node/ddpg.train.js
+$ node index.js
 ```
 
 Or you can work in your favorite browser:
