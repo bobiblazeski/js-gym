@@ -615,7 +615,12 @@
   };
 
   mk.arenas.Arena.prototype.init = function () {
-    var canvas = document.createElement('canvas');
+    const oldCanvas = document.getElementById('mk');
+    if (oldCanvas) {
+      this._container.removeChild(oldCanvas); 
+    }
+    const canvas = document.createElement('canvas');
+    canvas.id = 'mk';
     canvas.width = this.width;
     canvas.height = this.height;
     this._container.appendChild(canvas);
