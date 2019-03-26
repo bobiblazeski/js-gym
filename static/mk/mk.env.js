@@ -15,16 +15,17 @@ const MkEnv = (() => {
     HP   : 65, // A
     LP   : 83, // S
     LK   : 68, // D
-    HK   : 70, // F 
+    HK   : 70, // F
+    // NONE : 27, // Esc (No action)
   };
-  const KEYS = Object.values(KEY_CODES);// [39, 37, 38, 40, 16, 65, 83, 68, 70]
+  const KEYS = Object.values(KEY_CODES).concat(Object.values(KEY_CODES));
 
   const randomInt = (min_, max_) => {
     let min = Math.ceil(min_), max = Math.floor(max_);
     return Math.floor(Math.random() * (max - min)) + min;
   };
   
-  const makeOptions = (attackCb) => {
+  const makeOptions = (attackCb, gameEndCb) => {
     return {
       arena: {
           container: document.getElementById('arena'),
@@ -43,9 +44,14 @@ const MkEnv = (() => {
                 opponent: o.getLife(),
                 loss: l,
               });
-              console.log(`f ${f.getLife()} o ${o.getLife()} l ${l}`);
+              //console.log(`f ${f.getLife()} o ${o.getLife()} l ${l}`);
           },
-          // 'game-end': (fighter) => console.log('Game End', fighter),
+          'game-end': (fighter) => {
+             if (fighter.getName() === 'kano') {
+              console.log('Game End', fighter);
+             }
+             gameEndCb();
+          },
       },
       gameType: 'basic',
     };
@@ -66,28 +72,27 @@ const MkEnv = (() => {
     });
     await until(() => document.getElementById('mk'), 1000);
 
-    const gameCanvas = document.getElementById('mk');
-    if (!gameCanvas) {
-      console.log('Canvas is not initilized');
+    if (!document.getElementById('mk')) {
+      throw 'Canvas is not initilized';
     } 
   }
 
-  const SCALE = 0.1;
-
+  const stateCanvas = document.getElementById('state');
+  const stateContext = stateCanvas.getContext('2d');
+  
   const getImageData = () => {
     const gameCanvas = document.getElementById('mk');
-    const stateCanvas = document.getElementById('state');
-    const stateContext = stateCanvas.getContext('2d');
-    stateContext.scale(SCALE, SCALE);
-    stateContext.drawImage(gameCanvas, 0, 0);
+    stateContext.clearRect(0, 0, stateCanvas.width, stateCanvas.height);
+    stateContext.drawImage(gameCanvas, 0, 0, stateCanvas.width, stateCanvas.height);
     const imageData = stateContext.getImageData(0, 0, stateCanvas.width,
       stateCanvas.height);
+    prevImgData = imageData;
     return imageData;
   }
 
   const getStateShape = () => {
     const stateCanvas = document.getElementById('state');
-    return stateCanvas.width * stateCanvas.height;
+    return [stateCanvas.width, stateCanvas.height];
   }
 
   const toGrayScale = (pixels) => {
@@ -105,38 +110,48 @@ const MkEnv = (() => {
     return pixels;
   }
 
+  
   class MkEnv {
     constructor() {
       this.done = true;
       this.fighter = 0;
       this.opponent = 0;
       this.reward = 0;
-      this.options = makeOptions(this.__onAttack__);
+      this.options = makeOptions(
+        (life) => this.__onAttack__(life),
+        () => this.__gameEnd__()
+      );
       this.inputSize = getStateShape();
       this.outputSize = KEYS.length;
+      this.sleep = 1000 / Movement.constants.FRAME_RATE;
     }
 
     async reset() {
       await startNewGame(this.options);
-      sleep(1000);
+      sleep(30);
       this.done = false;
       this.fighter = 100;
       this.opponent = 100;
       this.reward = 0;
+
       return getState();
     }
 
     async step(action) {
-      if (this.done) throw 'Trying to step into done environment';
-
-      const keyCode = KEYS[argMax(action)];
-      document.dispatchEvent(new KeyboardEvent('keydown', {keyCode}));
-      await sleep(100);
+      if (!this.done) {
+        const index = argMax(action);
+        let keyCode = KEYS[index];
+        let typeArg = index < KEYS.length / 2 ? 'keydown' : 'keyup';
+        document.dispatchEvent(new KeyboardEvent(typeArg, {keyCode}));
+        await sleep(this.sleep);
+        
+      } else {
+        console.log('Trying to step into done environment');
+      }
       const reward = this.reward;
-      this.reward = 0;
-      const observation = getState();
+      this.reward = -0.001;
       return {
-        observation, 
+        observation: getState(), 
         reward, 
         done: this.done,
       };
@@ -155,9 +170,15 @@ const MkEnv = (() => {
       } else {
         this.reward = (this.fighter > fighter ? -loss : loss)/100;  
       }
+      console.log(`onAttack reward ${this.reward}`)
       this.fighter = fighter;
       this.opponent = opponent;
-      console.log(this.done, this.fighter, this.opponent, this.reward);
+      //console.log(this.done, this.fighter, this.opponent, this.reward);
+    }
+
+    __gameEnd__() {
+      this.done = true;
+      this.reward = 1;
     }
 
   }

@@ -26,48 +26,31 @@ const softUpdate = (source, target, tau) => {
   });
 }
 
-const makeActor = (inputShape, outputShape, d1=400, d2=300) => tf.sequential({
-  layers: [
-    tf.layers.dense({inputShape: [inputShape], units: d1, activation: 'relu'}),
-    tf.layers.dense({inputShape: [inputShape], units: d2, activation: 'relu'}),
-    tf.layers.dense({units:  outputShape, activation: 'tanh'}),
-  ]
-});
-
-// Can't use 'LeakyReLU' due to https://github.com/tensorflow/tfjs/issues/1093
-const makeCritic = (inputShape, actionShape, d1=400, d2=300) => {
-  const stateInput = tf.input({shape: [inputShape]});
-  const actionInput = tf.input({shape: [actionShape]});
-  const concat = tf.layers.concatenate().apply([stateInput, actionInput]);
-  const fc1 = tf.layers.dense({units: d1, activation: 'relu'}).apply(concat);    
-  const fc2 = tf.layers.dense({units: d2, activation: 'relu'}).apply(fc1);
-  const output = tf.layers.dense({units: 1}).apply(fc2);
-  const model = tf.model({inputs: [stateInput, actionInput], outputs: output});
-  return model;
-}
-
 const BUFFER_SIZE = 1e6;
-const BATCH_SIZE = 256;
+const BATCH_SIZE = 16;
 const GAMMA = 0.99;
 const TAU = 1e-3;
 const LR_ACTOR = 1e-4;
 const LR_CRITIC = 3e-4;
-const MIN_BUFFER_SIZE = 20 * BATCH_SIZE;
+const MIN_BUFFER_SIZE = 2 * BATCH_SIZE;
 const UPDATE_EVERY = 10;
 
 
 class DDPG {
-  constructor(stateSize, actionSize, epsilon=1.0, 
+  constructor(actionSize, makeActor, makeCritic, { epsilon=1.0, 
       lrActor=LR_ACTOR, lrCritic=LR_CRITIC,
-      bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE) {      
+      minBufferSize=MIN_BUFFER_SIZE, updateEvery=UPDATE_EVERY,
+      bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE} = {}) {      
     this.epsilon = epsilon;
+    this.minBufferSize = minBufferSize;
+    this.updateEvery = updateEvery;
     this.noise = new OUNoise(actionSize);
     this.buffer = new ReplayBuffer(bufferSize, batchSize);
 
-    this.actor = makeActor(stateSize, actionSize);
-    this.actorTarget = makeActor(stateSize, actionSize);
-    this.critic =makeCritic(stateSize, actionSize);
-    this.criticTarget =makeCritic(stateSize, actionSize);
+    this.actor = makeActor();
+    this.actorTarget = makeActor();
+    this.critic =makeCritic();
+    this.criticTarget =makeCritic();
     this.actorOptimizer = tf.train.adam(lrActor);
     this.criticOptimizer = tf.train.adam(lrCritic);
 
@@ -82,7 +65,7 @@ class DDPG {
         const noise = this.noise.sample();          
         action = action.add(tf.mul(noise, this.epsilon));
       }
-      return action.clipByValue(-1, 1);
+      return action;
     });
     const data = await action.data();
     return Array.from(data);
@@ -96,7 +79,7 @@ class DDPG {
     const {prevState, action, reward, observation, done} = envStep;
     const {stepNo} = other;
     this.buffer.add(prevState, action, reward, observation, done);
-    if (this.buffer.length > MIN_BUFFER_SIZE && stepNo % UPDATE_EVERY == 0) {        
+    if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
       this.learn(this.buffer.sample(), GAMMA);
     }          
   }
