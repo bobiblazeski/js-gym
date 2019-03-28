@@ -59,7 +59,7 @@ class ARS {
     this.startCycle();
   }
 
-  act(state, train=true) {
+  async act(state, train=true) {
     this.normalizer.observe(state);        
     const observation = this.normalizer.normalize(state);      
     const parameters = train 

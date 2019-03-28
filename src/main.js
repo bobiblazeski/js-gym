@@ -5,10 +5,13 @@ import HillClimbing from './agents/hill.climbing';
 
 import DDPG from './agents/ddpg';
 
+import OUNoise from './lib/ounoise';
+
 export {
     ARS,
     RandomPlay,
     RandomSearch,
     HillClimbing,
     DDPG,
+    OUNoise,
 }

@@ -3,7 +3,7 @@
 Object.defineProperty(exports, '__esModule', { value: true });
 
 var N = require('nial');
-var tf = require('@tensorflow/tfjs-node');
+var tf = require('@tensorflow/tfjs-node-gpu');
 
 class Normalizer {
     constructor(nbInputs) {

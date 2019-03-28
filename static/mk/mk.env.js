@@ -111,7 +111,7 @@ const MkEnv = (() => {
   }
 
   
-  class MkEnv {
+  class SinglePlayer {
     constructor() {
       this.done = true;
       this.fighter = 0;
@@ -133,23 +133,25 @@ const MkEnv = (() => {
       this.fighter = 100;
       this.opponent = 100;
       this.reward = 0;
-
+      this.stepNo = 0;
       return getState();
     }
 
     async step(action) {
-      if (!this.done) {
-        const index = argMax(action);
-        let keyCode = KEYS[index];
-        let typeArg = index < KEYS.length / 2 ? 'keydown' : 'keyup';
-        document.dispatchEvent(new KeyboardEvent(typeArg, {keyCode}));
-        await sleep(this.sleep);
-        
-      } else {
-        console.log('Trying to step into done environment');
+      if (this.done) {
+        throw 'Trying to step into done environment';
+      }
+      const index = argMax(action);
+      let keyCode = KEYS[index];
+      let typeArg = index < KEYS.length / 2 ? 'keydown' : 'keyup';
+      document.dispatchEvent(new KeyboardEvent(typeArg, {keyCode}));
+      await sleep(this.sleep);
+      if (++this.stepNo >= 50 && !this.done) {
+        this.done = true;
+        this.reward = -1;  
       }
       const reward = this.reward;
-      this.reward = -0.001;
+      this.reward = -0.0005;
       return {
         observation: getState(), 
         reward, 
@@ -173,7 +175,6 @@ const MkEnv = (() => {
       console.log(`onAttack reward ${this.reward}`)
       this.fighter = fighter;
       this.opponent = opponent;
-      //console.log(this.done, this.fighter, this.opponent, this.reward);
     }
 
     __gameEnd__() {
@@ -183,7 +184,7 @@ const MkEnv = (() => {
 
   }
 
-  return MkEnv;
+  return {SinglePlayer};
 })();
 /*
   const p1 = {

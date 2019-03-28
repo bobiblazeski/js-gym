@@ -86,7 +86,7 @@
       this.startCycle();
     }
 
-    act(state, train=true) {
+    async act(state, train=true) {
       this.normalizer.observe(state);        
       const observation = this.normalizer.normalize(state);      
       const parameters = train 
@@ -541,7 +541,7 @@
   }
 
   const NODEJS = typeof window === 'undefined';
-  const SAVE_METHOD = NODEJS ? `file://${process.cwd()}/saves/ddpg/` : 'indexeddb://';
+  const SAVE_METHOD = NODEJS ? `file://` : 'indexeddb://';
 
   const hardUpdate = (source, target) => {
     tf.tidy(() => {
@@ -570,14 +570,19 @@
   const LR_CRITIC = 3e-4;
   const MIN_BUFFER_SIZE = 2 * BATCH_SIZE;
   const UPDATE_EVERY = 10;
-
+  const EPSILON =1.0;
+  const EPSILON_DECAY =1e-6;
+  const MIN_EPSILON = 0.005;
 
   class DDPG {
-    constructor(actionSize, makeActor, makeCritic, { epsilon=1.0, 
+    constructor(actionSize, makeActor, makeCritic, { epsilon=EPSILON,
+        epsilonDecay=EPSILON_DECAY, minEpsilon=MIN_EPSILON,
         lrActor=LR_ACTOR, lrCritic=LR_CRITIC,
         minBufferSize=MIN_BUFFER_SIZE, updateEvery=UPDATE_EVERY,
         bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE} = {}) {      
       this.epsilon = epsilon;
+      this.epsilonDecay = epsilonDecay;
+      this.minEpsilon = minEpsilon;
       this.minBufferSize = minBufferSize;
       this.updateEvery = updateEvery;
       this.noise = new OUNoise(actionSize);
@@ -599,7 +604,7 @@
         let action = tf.squeeze(this.actor.predict(tf.tensor([state])));
         if (train) {
           const noise = this.noise.sample();          
-          action = action.add(tf.mul(noise, this.epsilon));
+          action = action.mul(1-this.epsilon).add(tf.mul(noise, this.epsilon));
         }
         return action;
       });
@@ -620,7 +625,7 @@
       }          
     }
 
-    learn(experiences, gamma, tau=TAU, epsilonDecay=1e-6) {      
+    learn(experiences, gamma, tau=TAU) {      
       tf.tidy(() => {
         Object.keys(experiences).map(function(key) {
           experiences[key] = tf.tensor(experiences[key]);
@@ -649,7 +654,7 @@
       softUpdate(this.critic, this.criticTarget, tau);
       softUpdate(this.actor, this.actorTarget, tau);
       // Noise update
-      this.epsilon -= this.epsilon > 0.001 ? epsilonDecay : 0;
+      this.epsilon = Math.max(this.minEpsilon, this.epsilon - this.epsilonDecay);
       this.noise.reset();
     }
 
@@ -671,6 +676,7 @@
   exports.ARS = ARS;
   exports.DDPG = DDPG;
   exports.HillClimbing = HillClimbing;
+  exports.OUNoise = OUNoise;
   exports.RandomPlay = RandomPlay;
   exports.RandomSearch = RandomSearch;
 

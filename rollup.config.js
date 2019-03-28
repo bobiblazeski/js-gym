@@ -45,6 +45,7 @@ export default [
 		external: ['nial', '@tensorflow/tfjs'],
 		output: [
 			{ file: pkg.main, format: 'cjs' },
+			{ file: pkg.gpu, format: 'cjs' },
 		]
 	}
 ];
