@@ -95,43 +95,22 @@ const MkEnv = (() => {
     } 
   }
 
-  const stateCanvas = document.getElementById('state');
-  const stateContext = stateCanvas.getContext('2d');
+
+  const STATE_SHAPE = [70, 70];
   
-  const getImageData = () => {
-    const gameCanvas = document.getElementById('mk');
-    stateContext.clearRect(0, 0, stateCanvas.width, stateCanvas.height);
-    stateContext.drawImage(gameCanvas, 0, 0, stateCanvas.width, stateCanvas.height);
-    const imageData = stateContext.getImageData(0, 0, stateCanvas.width,
-      stateCanvas.height);
-    prevImgData = imageData;
-    return imageData;
-  }
-
-  const getStateShape = () => {
-    const stateCanvas = document.getElementById('state');
-    return [stateCanvas.width, stateCanvas.height];
-  }
-
-  const toGrayScale = (pixels) => {
-    let res = new Array(pixels.length/4);
-    const norm = 3 * 255;
-		for (let i = 0; i < pixels.length; i += 4) {
-      res[parseInt(i/4)] = (pixels[i] + pixels[i + 1] + pixels[i + 2])/norm;
-    }
-    let sum = res.reduce((previous, current) => current += previous);
-    let avg = sum / res.length;
-    for(let i = 0; i < res.length; ++i) {
-      res[i] -= avg;
-    }
-    return res;
-  }
-
-  const getState = () => {
-    const imageData = getImageData();
-    const pixels = toGrayScale(imageData.data);
-    return pixels;
-  }
+  const getState = async () => {
+    const result = tf.tidy(() => {
+      const gameCanvas = document.getElementById('mk');
+      const iData = tf.browser.fromPixels(gameCanvas, 1);
+      const resized = tf.image.resizeBilinear(iData, STATE_SHAPE).toFloat();
+      // Normalize the image
+      const offset = tf.scalar(255.0);
+      const normalized = tf.scalar(1.0).sub(resized.div(offset));
+      return normalized.reshape([4900]);
+    });
+    const data = await result.data();
+    return Array.from(data);    
+  };
 
   const MAX_STEPS = 200;
 
@@ -145,7 +124,7 @@ const MkEnv = (() => {
         (life) => this.__onAttack__(life),
         () => this.__gameEnd__()
       );
-      this.inputSize = getStateShape();
+      this.inputSize = STATE_SHAPE;
       this.outputSize = KEYS.length;
       this.sleep = 1000 / Movement.constants.FRAME_RATE;
     }
@@ -159,7 +138,8 @@ const MkEnv = (() => {
       this.opponent = 100;
       this.reward = 0;
       this.stepNo = 0;
-      return getState();
+      const state = await getState();      
+      return state;
     }
 
     async step(action) {
@@ -179,8 +159,8 @@ const MkEnv = (() => {
       const reward = this.reward;
       this.reward = -0.0005;
       return {
-        observation: getState(), 
-        reward, 
+        observation: await getState(), 
+        reward,
         done: this.done,
       };
     }
