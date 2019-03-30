@@ -5,31 +5,49 @@ const MkEnv = (() => {
 
   const setLife = (container, life) => container.style.width = life + '%';
   document.onkeydown = (e)  => e.keyCode === 32 && window.location.reload();
-
-  const KEY_CODES = {
-    RIGHT: 39, // RightArrow
-    LEFT : 37, // LeftArrow
+ 
+  /*
+  {
+    "0": 233,
+    "1": 418,
+    "2": 305,
+    "3": 902,
+    "4": 242,
+    "5": 512,
+    "6": 345,
+    "7": 281,
+    "8": 284,  
+  }
+  */
+  
+  const KEY_CODES = {    
     UP   : 38, // UpArrow
+    LEFT : 39, // RightArrow 37, // LeftArrow        
     DOWN : 40, // DownArrow
-    BLOCK: 16, // Shift
+    RIGHT: 39, // RightArrow    
+    LP   : 83, // S    
     HP   : 65, // A
-    LP   : 83, // S
-    LK   : 68, // D
-    HK   : 70, // F
+    LK   : 68, // D    
+    HK   : 70, // F        
+    BLOCK: 39, // RightArrow 16, // Shift
     // NONE : 27, // Esc (No action)
   };
-  const KEYS = Object.values(KEY_CODES).concat(Object.values(KEY_CODES));
+  const KEYS = Object.values(KEY_CODES);
 
   const randomInt = (min_, max_) => {
     let min = Math.ceil(min_), max = Math.floor(max_);
     return Math.floor(Math.random() * (max - min)) + min;
   };
   
+  const ARENAS = Object.values(mk.arenas.types);
+
+  const randomArena = ()  => ARENAS[Math.floor(Math.random() * ARENAS.length)];
+
   const makeOptions = (attackCb, gameEndCb) => {
     return {
       arena: {
           container: document.getElementById('arena'),
-          arena: mk.arenas.types.THRONE_ROOM
+          arena: randomArena(),
       },
       fighters: [{ name: 'Subzero' }, { name: 'Kano' }],
       callbacks: {
@@ -101,6 +119,11 @@ const MkEnv = (() => {
 		for (let i = 0; i < pixels.length; i += 4) {
       res[parseInt(i/4)] = (pixels[i] + pixels[i + 1] + pixels[i + 2])/norm;
     }
+    let sum = res.reduce((previous, current) => current += previous);
+    let avg = sum / res.length;
+    for(let i = 0; i < res.length; ++i) {
+      res[i] -= avg;
+    }
     return res;
   }
 
@@ -110,7 +133,8 @@ const MkEnv = (() => {
     return pixels;
   }
 
-  
+  const MAX_STEPS = 200;
+
   class SinglePlayer {
     constructor() {
       this.done = true;
@@ -127,6 +151,7 @@ const MkEnv = (() => {
     }
 
     async reset() {
+      this.options.arena.arena = randomArena();
       await startNewGame(this.options);
       sleep(30);
       this.done = false;
@@ -143,10 +168,11 @@ const MkEnv = (() => {
       }
       const index = argMax(action);
       let keyCode = KEYS[index];
-      let typeArg = index < KEYS.length / 2 ? 'keydown' : 'keyup';
-      document.dispatchEvent(new KeyboardEvent(typeArg, {keyCode}));
+      //let typeArg = index < KEYS.length / 2 ? 'keydown' : 'keyup';
+      document.dispatchEvent(new KeyboardEvent('keydown', {keyCode}));
+      document.dispatchEvent(new KeyboardEvent('keyup', {keyCode}));
       await sleep(this.sleep);
-      if (++this.stepNo >= 50 && !this.done) {
+      if (++this.stepNo >= MAX_STEPS && !this.done) {
         this.done = true;
         this.reward = -1;  
       }

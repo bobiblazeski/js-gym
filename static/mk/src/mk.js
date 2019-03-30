@@ -601,7 +601,21 @@
   mk.arenas = {
     types: {
       TOWER      : 0,
-      THRONE_ROOM: 1
+      THRONE_ROOM: 1,
+      DEAD_WOODS: 2,
+      DESTROYED_CITY: 3,
+      EMPERORS_COURTYARD:4,
+      JINSEI_CHAMBER: 5,      
+      KROSSROADS: 6,
+      KUATAN_JUNGLE: 7,
+      LINKUEI_TEMPLE: 8,
+      OUTWORLD_MARKETPLACE: 9,
+      QUANCHI_FORTRESS: 10,
+      REFUGEE_KAMP: 11,
+      SKY_TEMPLE: 12,
+      THE_KOVE: 13,
+      THE_PIT: 14,
+      TRAINING_ROOM: 15,
     }
   };
 
