@@ -22,14 +22,14 @@ const MkEnv = (() => {
   
   const KEY_CODES = {    
     UP   : 38, // UpArrow
-    LEFT : 39, // RightArrow 37, // LeftArrow        
+    LEFT : 37, // LeftArrow        
     DOWN : 40, // DownArrow
     RIGHT: 39, // RightArrow    
     LP   : 83, // S    
     HP   : 65, // A
     LK   : 68, // D    
     HK   : 70, // F        
-    BLOCK: 39, // RightArrow 16, // Shift
+    BLOCK: 16, // Shift
     // NONE : 27, // Esc (No action)
   };
   const KEYS = Object.values(KEY_CODES);
@@ -96,23 +96,28 @@ const MkEnv = (() => {
   }
 
 
-  const STATE_SHAPE = [70, 70];
-  
-  const getState = async () => {
+  const STATE_SHAPE = [96, 96];
+
+  const getState = async (model) => {
     const result = tf.tidy(() => {
       const gameCanvas = document.getElementById('mk');
-      const iData = tf.browser.fromPixels(gameCanvas, 1);
+      const iData = tf.browser.fromPixels(gameCanvas, 3);
       const resized = tf.image.resizeBilinear(iData, STATE_SHAPE).toFloat();
       // Normalize the image
       const offset = tf.scalar(255.0);
       const normalized = tf.scalar(1.0).sub(resized.div(offset));
-      return normalized.reshape([4900]);
+
+      const features =model.predict(normalized.expandDims(0));
+      // console.log(features.shape); //[1, 3, 3, 1280]
+      return features.reshape([11520]); // 3*3*1280=11520
     });
     const data = await result.data();
     return Array.from(data);    
   };
 
   const MAX_STEPS = 200;
+
+  const MODEL_PATH = 'http://localhost:3000/mobilenet/model.json';
 
   class SinglePlayer {
     constructor() {
@@ -130,6 +135,9 @@ const MkEnv = (() => {
     }
 
     async reset() {
+      if (!this.model) {
+        this.model = await tf.loadLayersModel(MODEL_PATH);
+      }
       this.options.arena.arena = randomArena();
       await startNewGame(this.options);
       sleep(30);
@@ -138,7 +146,7 @@ const MkEnv = (() => {
       this.opponent = 100;
       this.reward = 0;
       this.stepNo = 0;
-      const state = await getState();      
+      const state = await getState(this.model);      
       return state;
     }
 
@@ -159,7 +167,7 @@ const MkEnv = (() => {
       const reward = this.reward;
       this.reward = -0.0005;
       return {
-        observation: await getState(), 
+        observation: await getState(this.model), 
         reward,
         done: this.done,
       };

@@ -54,11 +54,11 @@ const actions = {
   '8': 0,
   '9': 0,
 }
-io.on('connection', function (socket) {
+io.on('connection', function (socket) {  
   console.log('connection');
   const noise = new OUNoise(ACTION_SIZE);
   //const ars = new ARS(STATE_SIZE, ACTION_SIZE);
-  const r = 0.2;
+  const r = 0.5;
   socket.on('act', function (state) {
     // // if (ddpg.buffer.length < ddpg.minBufferSize 
     // //     || Math.random() < 0.1) {      

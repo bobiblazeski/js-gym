@@ -1,9 +1,4 @@
 (function () {
-  
-  const {DDPG} = Agents;
-
-  const stateCanvas = document.getElementById('state');
-  const [WIDTH, HEIGHT] = [stateCanvas.width, stateCanvas.height];
 
   const play = async (env, maxEpisodes,maxSteps) => {
     const outputSize = env.outputSize;
