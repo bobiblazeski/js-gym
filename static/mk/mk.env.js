@@ -39,6 +39,12 @@ const MkEnv = (() => {
     return Math.floor(Math.random() * (max - min)) + min;
   };
   
+  const getIndices = (action, threshold, topN) => {
+    const indices = action.reduce((r, e, i) => 
+        e > threshold ? r.concat(i) : r, []);
+    const sorted = indices.sort((l,r) => action[r] - action[l]);
+    return sorted.slice(0, topN);
+  }
   const ARENAS = Object.values(mk.arenas.types);
 
   const randomArena = ()  => ARENAS[Math.floor(Math.random() * ARENAS.length)];
@@ -119,6 +125,10 @@ const MkEnv = (() => {
 
   const MODEL_PATH = 'http://localhost:3000/mobilenet/model.json';
 
+  const THRESHOLD = 0.5;
+  const TOP_N = 2;
+  const STALLING = 20;
+
   class SinglePlayer {
     constructor() {
       this.done = true;
@@ -131,7 +141,7 @@ const MkEnv = (() => {
       );
       this.inputSize = STATE_SHAPE;
       this.outputSize = KEYS.length;
-      this.sleep = 1000 / Movement.constants.FRAME_RATE;
+      this.sleep = 80;//Movement.constants.FRAME_RATE;
     }
 
     async reset() {
@@ -146,6 +156,7 @@ const MkEnv = (() => {
       this.opponent = 100;
       this.reward = 0;
       this.stepNo = 0;
+      this.stalling = STALLING;
       const state = await getState(this.model);      
       return state;
     }
@@ -154,18 +165,26 @@ const MkEnv = (() => {
       if (this.done) {
         throw 'Trying to step into done environment';
       }
-      const index = argMax(action);
-      let keyCode = KEYS[index];
-      //let typeArg = index < KEYS.length / 2 ? 'keydown' : 'keyup';
-      document.dispatchEvent(new KeyboardEvent('keydown', {keyCode}));
-      document.dispatchEvent(new KeyboardEvent('keyup', {keyCode}));
-      await sleep(this.sleep);
-      if (++this.stepNo >= MAX_STEPS && !this.done) {
+      const indices = getIndices(action, THRESHOLD, TOP_N);
+      console.log(this.stepNo, action.map(i => i.toFixed(2)), indices);
+      indices.forEach(index => {
+        const keyCode = KEYS[index];
+        document.dispatchEvent(new KeyboardEvent('keydown', {keyCode}));                
+      });
+      await sleep(80);
+      indices.forEach(index => {
+        const keyCode = KEYS[index];
+        document.dispatchEvent(new KeyboardEvent('keyup', {keyCode}));                
+      });      
+      await sleep(80);
+      --this.stalling;
+      if ((++this.stepNo >= MAX_STEPS && !this.done)
+          ||  this.stalling < 0) {
         this.done = true;
         this.reward = -1;  
       }
       const reward = this.reward;
-      this.reward = -0.0005;
+      this.reward = 0;
       return {
         observation: await getState(this.model), 
         reward,
@@ -186,12 +205,14 @@ const MkEnv = (() => {
       } else {
         this.reward = (this.fighter > fighter ? -loss : loss)/100;  
       }
-      console.log(`onAttack reward ${this.reward}`)
+      console.log(`onAttack reward ${this.reward}`);
+      this.stalling = STALLING;
       this.fighter = fighter;
       this.opponent = opponent;
     }
 
     __gameEnd__() {
+      this.stalling = STALLING;
       this.done = true;
       this.reward = 1;
     }

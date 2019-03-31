@@ -3,7 +3,7 @@ import Normalizer from '../lib/normalizer';
 
 const HP = {    
   learningRate: 0.02,
-  nbDeltas: 8,//16,
+  nbDeltas: 16,
   nbBestDeltas: 8,//16
   noise: 0.2,
 };
@@ -55,7 +55,7 @@ class ARS {
     this.noise = noise;
     this.normalizer = new Normalizer([stateSize]);
     this.shape = [actionSize, stateSize];
-    this.parameters = N.zeros(this.shape);      
+    this.parameters = N.randn(this.shape);      
     this.startCycle();
   }
 
@@ -69,7 +69,7 @@ class ARS {
     return N.clip(N.dot(parameters, observation), -1, 1);
   }
 
-  step(envStep, other) {
+  async step(envStep, other) {
     const {done} = envStep;
     const {epReward} = other;
     if (done) {
@@ -95,21 +95,18 @@ class ARS {
     this.deltaNo = 0;
   }
 
-  save(infix) {
+  serialize() {
     const normalizer = this.normalizer;
     const parameters = this.parameters;
-    if (fs) {
-      const fileName = `./saves/ars/${infix}.json`;
-      fs.writeFile(fileName, JSON.stringify({
-        normalizer: {
-          n: normalizer.n,
-          mean: normalizer.mean,
-          meanDiff: normalizer.meanDiff,
-          variance: normalizer.variance,
-        },
-        parameters,
-      }, null, 2), (err) => err && console.log(err));
-    }
+    return JSON.stringify({
+      normalizer: {
+        n: normalizer.n,
+        mean: normalizer.mean,
+        meanDiff: normalizer.meanDiff,
+        variance: normalizer.variance,
+      },
+      parameters,
+    });
   }
 }
 

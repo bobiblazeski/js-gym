@@ -5,7 +5,7 @@ import pkg from './package.json';
 export default [
 	// browser-friendly UMD build
 	{
-		input: 'src/main.js',
+		input: 'src/browser.js',
 		external: ['nial', '@tensorflow/tfjs'],
 		
 		output: [			
@@ -41,7 +41,7 @@ export default [
 	// an array for the `output` option, where we can specify 
 	// `file` and `format` for each target)
 	{
-		input: 'src/main.js',
+		input: 'src/server.js',
 		external: ['nial', '@tensorflow/tfjs'],
 		output: [
 			{ file: pkg.main, format: 'cjs' },

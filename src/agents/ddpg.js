@@ -43,14 +43,15 @@ class DDPG {
       epsilonDecay=EPSILON_DECAY, minEpsilon=MIN_EPSILON,
       lrActor=LR_ACTOR, lrCritic=LR_CRITIC,
       minBufferSize=MIN_BUFFER_SIZE, updateEvery=UPDATE_EVERY,
-      bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE} = {}) {      
+      bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE} = {},
+      buffer) {
     this.epsilon = epsilon;
     this.epsilonDecay = epsilonDecay;
     this.minEpsilon = minEpsilon;
     this.minBufferSize = minBufferSize;
     this.updateEvery = updateEvery;
     this.noise = new OUNoise(actionSize);
-    this.buffer = new ReplayBuffer(bufferSize, batchSize);
+    this.buffer = buffer || new ReplayBuffer(bufferSize, batchSize);
 
     this.actor = makeActor();
     this.actorTarget = makeActor();
@@ -80,16 +81,18 @@ class DDPG {
     this.noise.reset();
   }
 
-  step (envStep, other) {
+  async step (envStep, other) {
     const {prevState, action, reward, observation, done} = envStep;
     const {stepNo} = other;
-    this.buffer.add(prevState, action, reward, observation, done);
+    this.buffer.add(prevState, action, reward, observation, done, other);
     if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
-      this.learn(this.buffer.sample(), GAMMA);
+      const episodes = await this.buffer.sample();
+      this.learn(episodes, GAMMA);
     }          
   }
 
-  learn(experiences, gamma, tau=TAU) {      
+  learn(experiences, gamma, tau=TAU) {
+    console.log('start learning');    
     tf.tidy(() => {
       Object.keys(experiences).map(function(key) {
         experiences[key] = tf.tensor(experiences[key]);
@@ -120,6 +123,7 @@ class DDPG {
     // Noise update
     this.epsilon = Math.max(this.minEpsilon, this.epsilon - this.epsilonDecay);
     this.noise.reset();
+    console.log('finished learning');
   }
 
   async save(infix) {

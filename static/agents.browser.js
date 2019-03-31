@@ -30,7 +30,7 @@
 
   const HP = {    
     learningRate: 0.02,
-    nbDeltas: 8,//16,
+    nbDeltas: 16,
     nbBestDeltas: 8,//16
     noise: 0.2,
   };
@@ -82,7 +82,7 @@
       this.noise = noise;
       this.normalizer = new Normalizer([stateSize]);
       this.shape = [actionSize, stateSize];
-      this.parameters = N.zeros(this.shape);      
+      this.parameters = N.randn(this.shape);      
       this.startCycle();
     }
 
@@ -96,7 +96,7 @@
       return N.clip(N.dot(parameters, observation), -1, 1);
     }
 
-    step(envStep, other) {
+    async step(envStep, other) {
       const {done} = envStep;
       const {epReward} = other;
       if (done) {
@@ -122,21 +122,18 @@
       this.deltaNo = 0;
     }
 
-    save(infix) {
+    serialize() {
       const normalizer = this.normalizer;
       const parameters = this.parameters;
-      if (fs) {
-        const fileName = `./saves/ars/${infix}.json`;
-        fs.writeFile(fileName, JSON.stringify({
-          normalizer: {
-            n: normalizer.n,
-            mean: normalizer.mean,
-            meanDiff: normalizer.meanDiff,
-            variance: normalizer.variance,
-          },
-          parameters,
-        }, null, 2), (err) => err && console.log(err));
-      }
+      return JSON.stringify({
+        normalizer: {
+          n: normalizer.n,
+          mean: normalizer.mean,
+          meanDiff: normalizer.meanDiff,
+          variance: normalizer.variance,
+        },
+        parameters,
+      });
     }
   }
 
@@ -579,14 +576,15 @@
         epsilonDecay=EPSILON_DECAY, minEpsilon=MIN_EPSILON,
         lrActor=LR_ACTOR, lrCritic=LR_CRITIC,
         minBufferSize=MIN_BUFFER_SIZE, updateEvery=UPDATE_EVERY,
-        bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE} = {}) {      
+        bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE} = {},
+        buffer) {
       this.epsilon = epsilon;
       this.epsilonDecay = epsilonDecay;
       this.minEpsilon = minEpsilon;
       this.minBufferSize = minBufferSize;
       this.updateEvery = updateEvery;
       this.noise = new OUNoise(actionSize);
-      this.buffer = new ReplayBuffer(bufferSize, batchSize);
+      this.buffer = buffer || new ReplayBuffer(bufferSize, batchSize);
 
       this.actor = makeActor();
       this.actorTarget = makeActor();
@@ -616,16 +614,18 @@
       this.noise.reset();
     }
 
-    step (envStep, other) {
+    async step (envStep, other) {
       const {prevState, action, reward, observation, done} = envStep;
       const {stepNo} = other;
-      this.buffer.add(prevState, action, reward, observation, done);
+      this.buffer.add(prevState, action, reward, observation, done, other);
       if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
-        this.learn(this.buffer.sample(), GAMMA);
+        const episodes = await this.buffer.sample();
+        this.learn(episodes, GAMMA);
       }          
     }
 
-    learn(experiences, gamma, tau=TAU) {      
+    learn(experiences, gamma, tau=TAU) {
+      console.log('start learning');    
       tf.tidy(() => {
         Object.keys(experiences).map(function(key) {
           experiences[key] = tf.tensor(experiences[key]);
@@ -656,6 +656,7 @@
       // Noise update
       this.epsilon = Math.max(this.minEpsilon, this.epsilon - this.epsilonDecay);
       this.noise.reset();
+      console.log('finished learning');
     }
 
     async save(infix) {
@@ -673,12 +674,16 @@
     }
   }
 
+  const lib = {
+    OUNoise,
+  };
+
   exports.ARS = ARS;
   exports.DDPG = DDPG;
   exports.HillClimbing = HillClimbing;
-  exports.OUNoise = OUNoise;
   exports.RandomPlay = RandomPlay;
   exports.RandomSearch = RandomSearch;
+  exports.lib = lib;
 
   Object.defineProperty(exports, '__esModule', { value: true });
 

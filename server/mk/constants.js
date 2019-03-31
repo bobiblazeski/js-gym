@@ -5,8 +5,8 @@ module.exports = {
   ACTION_SIZE: 9,
   
   DDPG_HP: {
-    minBufferSize: 500,
-    updateEvery: 100, 
+    minBufferSize: 32,
+    updateEvery: 10, 
     batchSize: 32,
     EPSILON: 0.2,
     EPSILON_DECAY: 1e-4,

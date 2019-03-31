@@ -31,7 +31,7 @@ class Normalizer {
 
 const HP = {    
   learningRate: 0.02,
-  nbDeltas: 8,//16,
+  nbDeltas: 16,
   nbBestDeltas: 8,//16
   noise: 0.2,
 };
@@ -83,7 +83,7 @@ class ARS {
     this.noise = noise;
     this.normalizer = new Normalizer([stateSize]);
     this.shape = [actionSize, stateSize];
-    this.parameters = N.zeros(this.shape);      
+    this.parameters = N.randn(this.shape);      
     this.startCycle();
   }
 
@@ -97,7 +97,7 @@ class ARS {
     return N.clip(N.dot(parameters, observation), -1, 1);
   }
 
-  step(envStep, other) {
+  async step(envStep, other) {
     const {done} = envStep;
     const {epReward} = other;
     if (done) {
@@ -123,21 +123,18 @@ class ARS {
     this.deltaNo = 0;
   }
 
-  save(infix) {
+  serialize() {
     const normalizer = this.normalizer;
     const parameters = this.parameters;
-    if (fs) {
-      const fileName = `./saves/ars/${infix}.json`;
-      fs.writeFile(fileName, JSON.stringify({
-        normalizer: {
-          n: normalizer.n,
-          mean: normalizer.mean,
-          meanDiff: normalizer.meanDiff,
-          variance: normalizer.variance,
-        },
-        parameters,
-      }, null, 2), (err) => err && console.log(err));
-    }
+    return JSON.stringify({
+      normalizer: {
+        n: normalizer.n,
+        mean: normalizer.mean,
+        meanDiff: normalizer.meanDiff,
+        variance: normalizer.variance,
+      },
+      parameters,
+    });
   }
 }
 
@@ -580,14 +577,15 @@ class DDPG {
       epsilonDecay=EPSILON_DECAY, minEpsilon=MIN_EPSILON,
       lrActor=LR_ACTOR, lrCritic=LR_CRITIC,
       minBufferSize=MIN_BUFFER_SIZE, updateEvery=UPDATE_EVERY,
-      bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE} = {}) {      
+      bufferSize=BUFFER_SIZE, batchSize=BATCH_SIZE} = {},
+      buffer) {
     this.epsilon = epsilon;
     this.epsilonDecay = epsilonDecay;
     this.minEpsilon = minEpsilon;
     this.minBufferSize = minBufferSize;
     this.updateEvery = updateEvery;
     this.noise = new OUNoise(actionSize);
-    this.buffer = new ReplayBuffer(bufferSize, batchSize);
+    this.buffer = buffer || new ReplayBuffer(bufferSize, batchSize);
 
     this.actor = makeActor();
     this.actorTarget = makeActor();
@@ -617,16 +615,18 @@ class DDPG {
     this.noise.reset();
   }
 
-  step (envStep, other) {
+  async step (envStep, other) {
     const {prevState, action, reward, observation, done} = envStep;
     const {stepNo} = other;
-    this.buffer.add(prevState, action, reward, observation, done);
+    this.buffer.add(prevState, action, reward, observation, done, other);
     if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
-      this.learn(this.buffer.sample(), GAMMA);
+      const episodes = await this.buffer.sample();
+      this.learn(episodes, GAMMA);
     }          
   }
 
-  learn(experiences, gamma, tau=TAU) {      
+  learn(experiences, gamma, tau=TAU) {
+    console.log('start learning');    
     tf.tidy(() => {
       Object.keys(experiences).map(function(key) {
         experiences[key] = tf.tensor(experiences[key]);
@@ -657,6 +657,7 @@ class DDPG {
     // Noise update
     this.epsilon = Math.max(this.minEpsilon, this.epsilon - this.epsilonDecay);
     this.noise.reset();
+    console.log('finished learning');
   }
 
   async save(infix) {
@@ -674,9 +675,83 @@ class DDPG {
   }
 }
 
+const fs =  require('fs');
+const fsp = fs.promises;
+const zlib = require('zlib');
+const moment = require('moment');
+const SAVE_PATH = process.cwd() +'/save/episodes/';
+
+const rewards = (ep) => ep.reduce((s, e) => s + Math.max(e.reward, 0), 0);
+
+const sampleEpisode = async (file, steps=1) => {
+  const compressed =  await fsp.readFile(SAVE_PATH + file);
+  const episode = await new Promise((resolve) => {
+    zlib.unzip(compressed, (_, buffer) => {
+      const json = JSON.parse(buffer.toString());
+      resolve(json);
+    });
+  });
+  // console.log(Object.keys(epi))
+  const episodeSteps =sample(episode, steps);
+  return episodeSteps;
+};
+
+class FileBuffer {
+  constructor(batchSize=12, savePath=SAVE_PATH) {
+    this.batchSize= batchSize;
+    this.memory = {};
+    this.savePath = savePath;    
+  }  
+  async add (state, action, reward, nextState, done, other) {    
+    const {epId} = other;
+    if (!this.memory[epId]) this.memory[epId] = [];
+    this.memory[epId].push({state, action, reward, nextState, done});    
+    if (done) this.flush(epId);
+  }
+  async sample() {
+    const files = await fsp.readdir(SAVE_PATH);
+    const sampleFiles = sample(files, this.batchSize);
+    let experiences = [];
+    for (let file of sampleFiles) {
+      const episodeExperiences = await sampleEpisode(file);
+      experiences = experiences.concat(episodeExperiences);
+    }
+    return {
+      states: experiences.map(x => x.state), 
+      actions: experiences.map(x => x.action), 
+      rewards: experiences.map(x => [x.reward]), 
+      nextStates: experiences.map(x => x.nextState), 
+      dones: experiences.map(x => [x.done]),
+    };        
+  }
+  flush(epId) {
+    const reward = rewards(this.memory[epId]);
+    if (reward > 0) {
+      const text = JSON.stringify(this.memory[epId]);
+      const path = this.makePath(reward);
+      zlib.gzip(text, (_, gz) => {
+        fs.writeFileSync(path, gz);
+      });      
+    }   
+    delete this.memory[epId];
+  }
+  makePath(reward) {
+    const timestamp = moment().format('YYYY.MM.DD-hh.mm.ss');
+    return `${this.savePath}${reward.toFixed(2)}-${timestamp}.gz`;
+  }
+  get length() {
+    return fs.readdirSync(SAVE_PATH).length;
+  }
+}
+
+const lib = {
+  OUNoise,
+  FileBuffer,
+};
+
 exports.ARS = ARS;
 exports.DDPG = DDPG;
 exports.HillClimbing = HillClimbing;
-exports.OUNoise = OUNoise;
 exports.RandomPlay = RandomPlay;
 exports.RandomSearch = RandomSearch;
+exports.lib = lib;
