@@ -26,6 +26,7 @@
     "superagent": "^4.1.0"
   },
   "devDependencies": {
+    "minimist": "^1.2.0",
     "replace-in-file": "^3.4.4",
     "rollup": "^1.7.0",
     "rollup-plugin-commonjs": "^9.2.1",

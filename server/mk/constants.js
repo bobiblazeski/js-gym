@@ -3,13 +3,20 @@ module.exports = {
   HEIGHT: 70,
   STATE_SIZE: 11520,// 3*3*1280=11520
   ACTION_SIZE: 9,
-  
   DDPG_HP: {
     minBufferSize: 32,
-    updateEvery: 10, 
+    updateEvery: 200,
     batchSize: 32,
-    EPSILON: 0.2,
-    EPSILON_DECAY: 1e-4,
-    MIN_EPSILON: 0.05,
+    epsilon: 0.95,
+    epsilonDecay: 1e-3,
+    minEpsilon: 0.05,
   },
+  KANO: {
+    batchSize: 32,
+    bufferPath: process.cwd() +'/save/episodes/kano/',
+  },
+  SUBZERO: {
+    batchSize: 32,
+    bufferPath: process.cwd() +'/save/episodes/subzero/',
+  }
 };

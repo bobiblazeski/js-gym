@@ -1,42 +1,38 @@
 const MkEnv = (() => {
-  const argMax = arr => arr.map((x, i) => [x, i])
-                           .reduce((r, a) => (a[0] > r[0] ? a : r))[1];
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
   const setLife = (container, life) => container.style.width = life + '%';
   document.onkeydown = (e)  => e.keyCode === 32 && window.location.reload();
  
-  /*
-  {
-    "0": 233,
-    "1": 418,
-    "2": 305,
-    "3": 902,
-    "4": 242,
-    "5": 512,
-    "6": 345,
-    "7": 281,
-    "8": 284,  
-  }
-  */
-  
-  const KEY_CODES = {    
-    UP   : 38, // UpArrow
-    LEFT : 37, // LeftArrow        
-    DOWN : 40, // DownArrow
-    RIGHT: 39, // RightArrow    
-    LP   : 83, // S    
-    HP   : 65, // A
-    LK   : 68, // D    
-    HK   : 70, // F        
-    BLOCK: 16, // Shift
-    // NONE : 27, // Esc (No action)
+  const KEY_CODES = {
+    subzero: {
+      RIGHT: 74, // J
+      LEFT : 71, // G
+      UP   : 89, // Y
+      DOWN : 72, // H
+      BLOCK: 16, // Shift
+      HP   : 65, // A
+      LP   : 83, // S
+      LK   : 68, // D
+      HK   : 70, // F 
+    },
+    kano: {
+      RIGHT: 39, // RightArrow
+      LEFT : 37, // LeftArrow
+      UP   : 38, // UpArrow
+      DOWN : 40, // DownArrow
+      BLOCK: 17, // Ctrl 
+      HP   : 80, // P
+      LP   : 219,// [ Doesn't work
+      LK   : 221,// ]
+      HK   : 220,// \
+    },
   };
-  const KEYS = Object.values(KEY_CODES);
-
-  const randomInt = (min_, max_) => {
-    let min = Math.ceil(min_), max = Math.floor(max_);
-    return Math.floor(Math.random() * (max - min)) + min;
+  
+  
+  const KEYS = {
+    subzero: Object.values(KEY_CODES.subzero),
+    kano: Object.values(KEY_CODES.kano),
   };
   
   const getIndices = (action, threshold, topN) => {
@@ -44,40 +40,57 @@ const MkEnv = (() => {
         e > threshold ? r.concat(i) : r, []);
     const sorted = indices.sort((l,r) => action[r] - action[l]);
     return sorted.slice(0, topN);
+  };
+
+  const getKeyCodes = (action, threshold, topN) => {
+    const kanoIndices = getIndices(action.kano, threshold, topN);
+    const subzeroIndices = getIndices(action.subzero, threshold, topN);
+    //console.log({kanoIndices, subzeroIndices});
+    const kanoKeyCodes = kanoIndices.map(i => KEYS.kano[i]);
+    const subzeroKeyCodes = subzeroIndices.map(i => KEYS.subzero[i]);
+    return kanoKeyCodes.concat(subzeroKeyCodes);
   }
   const ARENAS = Object.values(mk.arenas.types);
 
   const randomArena = ()  => ARENAS[Math.floor(Math.random() * ARENAS.length)];
 
-  const makeOptions = (attackCb, gameEndCb) => {
+  const makeOptions = (attackCb, gameEndCb, fighters) => {
     return {
       arena: {
           container: document.getElementById('arena'),
           arena: randomArena(),
       },
-      fighters: [{ name: 'Subzero' }, { name: 'Kano' }],
+      fighters: fighters,
       callbacks: {
           attack: function (f, o, l) {
-              if (o.getName() === 'kano') {
-                  setLife(document.getElementById('player2Life'), o.getLife());
-              } else {
-                  setLife(document.getElementById('player1Life'), o.getLife());
-              }
+            const loss = l / 100;
+            if (o.getName() === 'kano') {
+              setLife(document.getElementById('player2Life'), o.getLife());
               attackCb({
-                fighter: f.getLife(),
-                opponent: o.getLife(),
-                loss: l,
+                subzero: +loss, 
+                kano: -loss, 
+                subzeroHealth: f.getLife(),
+                kanoHealth: o.getLife(),
               });
-              //console.log(`f ${f.getLife()} o ${o.getLife()} l ${l}`);
+            } else {
+              setLife(document.getElementById('player1Life'), o.getLife());
+              attackCb({
+                subzero: -loss, 
+                kano: +loss,
+                subzeroHealth: o.getLife(),
+                kanoHealth: f.getLife(),
+              });
+            }
           },
           'game-end': (fighter) => {
              if (fighter.getName() === 'kano') {
-              console.log('Game End', fighter);
+              gameEndCb({subzero: +1, kano: -1});
+             } else {
+              gameEndCb({subzero: -1, kano: +1}); 
              }
-             gameEndCb();
           },
       },
-      gameType: 'basic',
+      gameType: 'multiplayer',
     };
   };
 
@@ -101,6 +114,9 @@ const MkEnv = (() => {
     } 
   }
 
+  const dispatch = (typeArg, keyCode) => {
+    document.dispatchEvent(new KeyboardEvent(typeArg, {keyCode}));
+  }
 
   const STATE_SHAPE = [96, 96];
 
@@ -114,7 +130,6 @@ const MkEnv = (() => {
       const normalized = tf.scalar(1.0).sub(resized.div(offset));
 
       const features =model.predict(normalized.expandDims(0));
-      // console.log(features.shape); //[1, 3, 3, 1280]
       return features.reshape([11520]); // 3*3*1280=11520
     });
     const data = await result.data();
@@ -127,21 +142,21 @@ const MkEnv = (() => {
 
   const THRESHOLD = 0.5;
   const TOP_N = 2;
-  const STALLING = 20;
+  const SLEEP_MS = 120;
+  const FIGHTERS = [{ name: 'Subzero' }, { name: 'Kano' }];
 
-  class SinglePlayer {
-    constructor() {
+  class MultiPlayer {
+    constructor(fighters=FIGHTERS) {
       this.done = true;
-      this.fighter = 0;
-      this.opponent = 0;
-      this.reward = 0;
+      this.reward = {subzero: 0, kano: 0};
       this.options = makeOptions(
-        (life) => this.__onAttack__(life),
-        () => this.__gameEnd__()
+        (rewards) => this.__onAttack__(rewards),
+        (rewards) => this.__gameEnd__(rewards),
+        fighters,
       );
       this.inputSize = STATE_SHAPE;
       this.outputSize = KEYS.length;
-      this.sleep = 80;//Movement.constants.FRAME_RATE;
+      this.sleep = SLEEP_MS;
     }
 
     async reset() {
@@ -150,13 +165,15 @@ const MkEnv = (() => {
       }
       this.options.arena.arena = randomArena();
       await startNewGame(this.options);
-      sleep(30);
+      sleep(this.sleep);
       this.done = false;
-      this.fighter = 100;
-      this.opponent = 100;
-      this.reward = 0;
+      this.reward = {subzero: 0, kano: 0};
+      this.subzeroHealth = 100;
+      this.kanoHealth = 100;
       this.stepNo = 0;
-      this.stalling = STALLING;
+      this.gameEnd = false;
+      this.subzeroX = mk.game.fighters[0]._position.x;
+      this.kanoX = mk.game.fighters[1]._position.x;
       const state = await getState(this.model);      
       return state;
     }
@@ -164,85 +181,82 @@ const MkEnv = (() => {
     async step(action) {
       if (this.done) {
         throw 'Trying to step into done environment';
-      }
-      const indices = getIndices(action, THRESHOLD, TOP_N);
-      console.log(this.stepNo, action.map(i => i.toFixed(2)), indices);
-      indices.forEach(index => {
-        const keyCode = KEYS[index];
-        document.dispatchEvent(new KeyboardEvent('keydown', {keyCode}));                
-      });
-      await sleep(80);
-      indices.forEach(index => {
-        const keyCode = KEYS[index];
-        document.dispatchEvent(new KeyboardEvent('keyup', {keyCode}));                
-      });      
-      await sleep(80);
-      --this.stalling;
-      if ((++this.stepNo >= MAX_STEPS && !this.done)
-          ||  this.stalling < 0) {
+      } else if (this.gameEnd) {
+        console.log('Game End.');
         this.done = true;
-        this.reward = -1;  
+        return {
+          observation: await getState(this.model),
+          reward: this.reward,
+          done: this.done,
+        };
       }
+      const keyCodes = getKeyCodes(action, THRESHOLD, TOP_N);
+      keyCodes.forEach(keyCode => dispatch('keydown', keyCode));
+      await sleep(this.sleep);
+      keyCodes.forEach(keyCode => dispatch('keyup', keyCode));
+      if (++this.stepNo >= MAX_STEPS && !this.done) {
+        this.done = true;
+        // Victory by points
+        if (this.kanoHealth > this.subzeroHealth) {
+          this.reward.kano = +1;
+          this.reward.subzero += -1;
+          console.log('Victory by points: KANO');
+        } else if (this.kanoHealth < this.subzeroHealth) {
+          this.reward.kano += -1;
+          this.reward.subzero += +1; 
+          console.log('Victory by points: SUBZERO');
+        }
+      }
+      //  else if (!this.reward.subzero && !this.reward.kano) {
+      //   const subzeroX = mk.game.fighters[0]._position.x;
+      //   const kanoX = mk.game.fighters[1]._position.x;
+      //   // Closing distance reward
+
+      //   if (Math.abs(subzeroX-this.subzeroX) > 10
+      //       && Math.abs()) {
+      //     this.reward.subzero = 0.005;
+      //   }
+        
+        
+      //   if (this.stalling < 0) {
+      //     this.done =true;
+      //     this.reward = {subzero: -1, kano: -1};
+      //     console.log('Defeat by stalling: MUTUAL');
+      //   }
+      // }
       const reward = this.reward;
-      this.reward = 0;
+      this.reward = {subzero: 0, kano: 0};      
       return {
-        observation: await getState(this.model), 
+        observation: await getState(this.model),
         reward,
         done: this.done,
       };
     }
 
-    actionSpaceSample() {
-      return randomInt(0, KEYS.length);
-    }
-
-    __onAttack__(life) {
-      if (this.done) return;
-      const {fighter, opponent, loss} = life;
-      this.done = [fighter, opponent].includes(0);
-      if (this.done) {
-        this.reward = fighter === 0 ? -1 : 1;
-      } else {
-        this.reward = (this.fighter > fighter ? -loss : loss)/100;  
+    __onAttack__(reward) {
+      if (!this.done) {
+        this.reward.kano += reward.kano;
+        this.reward.subzero += reward.subzero;        
+        this.subzeroHealth = reward.subzeroHealth;
+        this.kanoHealth = reward.kanoHealth;   
       }
-      console.log(`onAttack reward ${this.reward}`);
-      this.stalling = STALLING;
-      this.fighter = fighter;
-      this.opponent = opponent;
+      console.log(`onAttack ${JSON.stringify(this.reward, null, 2)}`);
     }
 
-    __gameEnd__() {
-      this.stalling = STALLING;
-      this.done = true;
-      this.reward = 1;
+    __gameEnd__(reward) {
+      if (!this.done) {
+        this.reward.kano = reward.kano;
+        this.reward.subzero = reward.subzero;        
+        this.gameEnd = true;
+        if (reward.kano > reward.subzero) {
+          console.log('Victory by KO: KANO');
+        } else {
+          console.log('Victory by KO: SUBZERO');
+        }        
+      }
+      console.log(`onGameEnd ${JSON.stringify(this.reward, null, 2)}`);
     }
-
   }
 
-  return {SinglePlayer};
+  return {MultiPlayer};
 })();
-/*
-  const p1 = {
-    RIGHT: 74, // J
-    LEFT : 71, // G
-    UP   : 89, // Y
-    DOWN : 72, // H
-    BLOCK: 16, // Shift
-    HP   : 65, // A
-    LP   : 83, // S
-    LK   : 68, // D
-    HK   : 70, // F 
-  };
-
-  const p2 = {
-    RIGHT: 39, // RightArrow
-    LEFT : 37, // LeftArrow
-    UP   : 38, // UpArrow
-    DOWN : 40, // DownArrow
-    BLOCK: 17, // Ctrl 
-    HP   : 80, // P
-    LP   : 219,// [ Doesn't work
-    LK   : 221,// ]
-    HK   : 220,// \
-  };
-*/

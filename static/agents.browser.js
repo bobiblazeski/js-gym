@@ -490,6 +490,12 @@
     return results;
   };
 
+  function softmax(arr) {
+    return arr.map(function(value,index) { 
+      return Math.exp(value) / arr.map( function(y /*value*/){ return Math.exp(y) } ).reduce( function(a,b){ return a+b })
+    })
+  }
+
   class ReplayBuffer {
     constructor(bufferSize, batchSize) {
       this.bufferSize = bufferSize;
@@ -569,7 +575,7 @@
   const UPDATE_EVERY = 10;
   const EPSILON =1.0;
   const EPSILON_DECAY =1e-6;
-  const MIN_EPSILON = 0.005;
+  const MIN_EPSILON = 0.05;
 
   class DDPG {
     constructor(actionSize, makeActor, makeCritic, { epsilon=EPSILON,
@@ -601,7 +607,9 @@
       const action = tf.tidy(() => {
         let action = tf.squeeze(this.actor.predict(tf.tensor([state])));
         if (train) {
-          const noise = this.noise.sample();          
+          const rawNoise = this.noise.sample();
+          const noise = softmax(rawNoise.slice(0, 4))
+            .concat(softmax(rawNoise.slice(4, 9)));        
           action = action.mul(1-this.epsilon).add(tf.mul(noise, this.epsilon));
         }
         return action;
@@ -618,19 +626,27 @@
       const {prevState, action, reward, observation, done} = envStep;
       const {stepNo} = other;
       this.buffer.add(prevState, action, reward, observation, done, other);
-      if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
+      if (this.buffer.length > this.minBufferSize 
+          && stepNo !== 0 && stepNo % this.updateEvery === 0) {        
+        console.log('load episodes');
         const episodes = await this.buffer.sample();
-        this.learn(episodes, GAMMA);
+        console.log('start learning');
+        for (let i = 0; i < 3; ++i) {
+          this.learn(episodes, GAMMA);
+        }
+        console.log('finished learning');
+        console.log('Epsilon', this.epsilon);
       }          
     }
 
-    learn(experiences, gamma, tau=TAU) {
-      console.log('start learning');    
-      tf.tidy(() => {
+    learn(experiences, gamma, tau=TAU) {    
+      tf.tidy(() => {      
+        const tensorified = {};
         Object.keys(experiences).map(function(key) {
-          experiences[key] = tf.tensor(experiences[key]);
-        });
-        const {states, actions, rewards, nextStates, dones} = experiences;
+          tensorified[key] = tf.tensor(experiences[key]);        
+        });      
+        const {states, actions, rewards, nextStates, dones} = tensorified;
+
         // Get predicted next-state actions and Q values from target models
         const actionsNext = this.actorTarget.predict(nextStates);
         const qTargetsNext = this.criticTarget.predict([nextStates, actionsNext]);        
@@ -655,8 +671,7 @@
       softUpdate(this.actor, this.actorTarget, tau);
       // Noise update
       this.epsilon = Math.max(this.minEpsilon, this.epsilon - this.epsilonDecay);
-      this.noise.reset();
-      console.log('finished learning');
+      this.noise.reset();    
     }
 
     async save(infix) {

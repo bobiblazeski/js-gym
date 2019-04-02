@@ -491,6 +491,12 @@ const sample = (array, size) => {
   return results;
 };
 
+function softmax(arr) {
+  return arr.map(function(value,index) { 
+    return Math.exp(value) / arr.map( function(y /*value*/){ return Math.exp(y) } ).reduce( function(a,b){ return a+b })
+  })
+}
+
 class ReplayBuffer {
   constructor(bufferSize, batchSize) {
     this.bufferSize = bufferSize;
@@ -570,7 +576,7 @@ const MIN_BUFFER_SIZE = 2 * BATCH_SIZE;
 const UPDATE_EVERY = 10;
 const EPSILON =1.0;
 const EPSILON_DECAY =1e-6;
-const MIN_EPSILON = 0.005;
+const MIN_EPSILON = 0.05;
 
 class DDPG {
   constructor(actionSize, makeActor, makeCritic, { epsilon=EPSILON,
@@ -602,7 +608,9 @@ class DDPG {
     const action = tf.tidy(() => {
       let action = tf.squeeze(this.actor.predict(tf.tensor([state])));
       if (train) {
-        const noise = this.noise.sample();          
+        const rawNoise = this.noise.sample();
+        const noise = softmax(rawNoise.slice(0, 4))
+          .concat(softmax(rawNoise.slice(4, 9)));        
         action = action.mul(1-this.epsilon).add(tf.mul(noise, this.epsilon));
       }
       return action;
@@ -619,19 +627,27 @@ class DDPG {
     const {prevState, action, reward, observation, done} = envStep;
     const {stepNo} = other;
     this.buffer.add(prevState, action, reward, observation, done, other);
-    if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
+    if (this.buffer.length > this.minBufferSize 
+        && stepNo !== 0 && stepNo % this.updateEvery === 0) {        
+      console.log('load episodes');
       const episodes = await this.buffer.sample();
-      this.learn(episodes, GAMMA);
+      console.log('start learning');
+      for (let i = 0; i < 3; ++i) {
+        this.learn(episodes, GAMMA);
+      }
+      console.log('finished learning');
+      console.log('Epsilon', this.epsilon);
     }          
   }
 
-  learn(experiences, gamma, tau=TAU) {
-    console.log('start learning');    
-    tf.tidy(() => {
+  learn(experiences, gamma, tau=TAU) {    
+    tf.tidy(() => {      
+      const tensorified = {};
       Object.keys(experiences).map(function(key) {
-        experiences[key] = tf.tensor(experiences[key]);
-      });
-      const {states, actions, rewards, nextStates, dones} = experiences;
+        tensorified[key] = tf.tensor(experiences[key]);        
+      });      
+      const {states, actions, rewards, nextStates, dones} = tensorified;
+
       // Get predicted next-state actions and Q values from target models
       const actionsNext = this.actorTarget.predict(nextStates);
       const qTargetsNext = this.criticTarget.predict([nextStates, actionsNext]);        
@@ -656,8 +672,7 @@ class DDPG {
     softUpdate(this.actor, this.actorTarget, tau);
     // Noise update
     this.epsilon = Math.max(this.minEpsilon, this.epsilon - this.epsilonDecay);
-    this.noise.reset();
-    console.log('finished learning');
+    this.noise.reset();    
   }
 
   async save(infix) {
@@ -679,28 +694,29 @@ const fs =  require('fs');
 const fsp = fs.promises;
 const zlib = require('zlib');
 const moment = require('moment');
-const SAVE_PATH = process.cwd() +'/save/episodes/';
+const BATCH_SIZE$1 = 32;
+const EPISODE_STEPS = 3;
 
-const rewards = (ep) => ep.reduce((s, e) => s + Math.max(e.reward, 0), 0);
+const rewards = (ep) => ep.reduce((s, e) => s + Math.abs(e.reward), 0);
 
-const sampleEpisode = async (file, steps=1) => {
-  const compressed =  await fsp.readFile(SAVE_PATH + file);
+const sampleEpisode = async (epPath, steps) => {
+  const compressed =  await fsp.readFile(epPath);
   const episode = await new Promise((resolve) => {
     zlib.unzip(compressed, (_, buffer) => {
       const json = JSON.parse(buffer.toString());
       resolve(json);
     });
-  });
-  // console.log(Object.keys(epi))
+  });  
   const episodeSteps =sample(episode, steps);
   return episodeSteps;
 };
 
 class FileBuffer {
-  constructor(batchSize=12, savePath=SAVE_PATH) {
+  constructor(batchSize=BATCH_SIZE$1, savePath, steps=EPISODE_STEPS) {
     this.batchSize= batchSize;
     this.memory = {};
     this.savePath = savePath;    
+    this.steps = steps;
   }  
   async add (state, action, reward, nextState, done, other) {    
     const {epId} = other;
@@ -709,11 +725,12 @@ class FileBuffer {
     if (done) this.flush(epId);
   }
   async sample() {
-    const files = await fsp.readdir(SAVE_PATH);
-    const sampleFiles = sample(files, this.batchSize);
+    const files = await fsp.readdir(this.savePath);
+    const filesNum = Math.round(this.batchSize/this.steps);
+    const sampleFiles = sample(files, filesNum);
     let experiences = [];
     for (let file of sampleFiles) {
-      const episodeExperiences = await sampleEpisode(file);
+      const episodeExperiences = await sampleEpisode(this.savePath+file, this.steps);
       experiences = experiences.concat(episodeExperiences);
     }
     return {
@@ -726,7 +743,7 @@ class FileBuffer {
   }
   flush(epId) {
     const reward = rewards(this.memory[epId]);
-    if (reward > 0) {
+    if (reward !== 0) {
       const text = JSON.stringify(this.memory[epId]);
       const path = this.makePath(reward);
       zlib.gzip(text, (_, gz) => {
@@ -740,7 +757,7 @@ class FileBuffer {
     return `${this.savePath}${reward.toFixed(2)}-${timestamp}.gz`;
   }
   get length() {
-    return fs.readdirSync(SAVE_PATH).length;
+    return fs.readdirSync(this.savePath).length;
   }
 }
 

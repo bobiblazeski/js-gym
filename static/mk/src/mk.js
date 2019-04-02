@@ -174,7 +174,7 @@
     opponent.getMove().stop();
     opponent.setMove(mk.moves.types.WIN);
     if (typeof callback === 'function') {
-      callback.call(null, fighter);
+      callback.call(null, fighter, opponent);
     }
   };
 

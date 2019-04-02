@@ -11,4 +11,12 @@ const sample = (array, size) => {
   return results;
 }
 
-export {sample};
+const sigmoid = t =>  1/(1+Math.pow(Math.E, -t));
+
+function softmax(arr) {
+  return arr.map(function(value,index) { 
+    return Math.exp(value) / arr.map( function(y /*value*/){ return Math.exp(y) } ).reduce( function(a,b){ return a+b })
+  })
+}
+
+export {sample, sigmoid, softmax};
