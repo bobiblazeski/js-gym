@@ -69,9 +69,7 @@ class DDPG {
     const action = tf.tidy(() => {
       let action = tf.squeeze(this.actor.predict(tf.tensor([state])));
       if (train) {
-        const rawNoise = this.noise.sample();
-        const noise = softmax(rawNoise.slice(0, 4))
-          .concat(softmax(rawNoise.slice(4, 9)));        
+        const noise = softmax(this.noise.sample());        
         action = action.mul(1-this.epsilon).add(tf.mul(noise, this.epsilon));
       }
       return action;
@@ -87,17 +85,14 @@ class DDPG {
   async step (envStep, other) {
     const {prevState, action, reward, observation, done} = envStep;
     const {stepNo} = other;
-    this.buffer.add(prevState, action, reward, observation, done, other);
-    if (this.buffer.length > this.minBufferSize 
-        && stepNo !== 0 && stepNo % this.updateEvery === 0) {        
+    this.buffer.add(prevState, action, reward, observation, done, other);    
+    if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
       console.log('load episodes');
       const episodes = await this.buffer.sample();
-      console.log('start learning');
       for (let i = 0; i < 3; ++i) {
         this.learn(episodes, GAMMA);
       }
-      console.log('finished learning');
-      console.log('Epsilon', this.epsilon);
+      console.log('Epsilon', this.epsilon.toFixed(2));
     }          
   }
 

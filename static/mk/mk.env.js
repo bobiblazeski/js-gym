@@ -1,6 +1,6 @@
 const MkEnv = (() => {
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
+  const argMax = l => l.map((x, i) => [x, i]).reduce((r, a) => (a[0] > r[0] ? a : r))[1];
   const setLife = (container, life) => container.style.width = life + '%';
   document.onkeydown = (e)  => e.keyCode === 32 && window.location.reload();
  
@@ -28,28 +28,59 @@ const MkEnv = (() => {
       HK   : 220,// \
     },
   };
-  
-  
-  const KEYS = {
-    subzero: Object.values(KEY_CODES.subzero),
-    kano: Object.values(KEY_CODES.kano),
-  };
-  
-  const getIndices = (action, threshold, topN) => {
-    const indices = action.reduce((r, e, i) => 
-        e > threshold ? r.concat(i) : r, []);
-    const sorted = indices.sort((l,r) => action[r] - action[l]);
-    return sorted.slice(0, topN);
-  };
 
-  const getKeyCodes = (action, threshold, topN) => {
-    const kanoIndices = getIndices(action.kano, threshold, topN);
-    const subzeroIndices = getIndices(action.subzero, threshold, topN);
-    //console.log({kanoIndices, subzeroIndices});
-    const kanoKeyCodes = kanoIndices.map(i => KEYS.kano[i]);
-    const subzeroKeyCodes = subzeroIndices.map(i => KEYS.subzero[i]);
-    return kanoKeyCodes.concat(subzeroKeyCodes);
+  const MOVES_MAP= {
+    'STAND': [],
+    'WALK': ['RIGHT'],
+    'WALK_BACKWARD': ['LEFT'],
+    'JUMP': ['UP'],
+    'SQUAT': ['DOWN'],
+    'BLOCK': ['BLOCK'],
+    'HIGH_PUNCH': ['HP'],
+    'LOW_PUNCH': ['LP'],
+    'HIGH_KICK': ['HK'],
+    'LOW_KICK': ['LK'],
+    'BACKWARD_JUMP': ['LEFT', 'UP'],
+    'SPIN_KICK_LEFT': ['LEFT', 'HK'],
+    'FORWARD_JUMP': ['RIGHT', 'UP'],
+    'SPIN_KICK_RIGHT': ['RIGHT', 'HK'],
+    'UPPERCUT': ['DOWN', 'HP'],
+    'SQUAT_LOW_KICK': ['DOWN', 'LK'],
+    'SQUAT_HIGH_KICK': ['DOWN', 'HK'],
+    'SQUAT_LOW_PUNCH': ['DOWN', 'LP'],
   }
+
+  const MOVES = [
+    "STAND",
+    "WALK",
+    "WALK_BACKWARD",
+    "JUMP",
+    "SQUAT",
+    "BLOCK",
+    "HIGH_PUNCH",
+    "LOW_PUNCH",
+    "HIGH_KICK",
+    "LOW_KICK",
+    "BACKWARD_JUMP",
+    "SPIN_KICK_LEFT",
+    "FORWARD_JUMP",
+    "SPIN_KICK_RIGHT",
+    "UPPERCUT",
+    "SQUAT_LOW_KICK",
+    "SQUAT_HIGH_KICK",
+    "SQUAT_LOW_PUNCH",
+  ];
+  
+  
+  const getKeyCodes = action => {
+    const subzeroChoice = MOVES[argMax(action.subzero)];
+    const kanoChoice = MOVES[argMax(action.kano)];
+    console.log(`subzero: ${subzeroChoice}, kano: ${kanoChoice}`);
+    const subzeroKeyCodes = MOVES_MAP[subzeroChoice].map(k => KEY_CODES.subzero[k]);
+    const kanoKeyCodes = MOVES_MAP[kanoChoice].map(k => KEY_CODES.kano[k]);
+    return subzeroKeyCodes.concat(kanoKeyCodes);
+  }
+
   const ARENAS = Object.values(mk.arenas.types);
 
   const randomArena = ()  => ARENAS[Math.floor(Math.random() * ARENAS.length)];
@@ -140,22 +171,22 @@ const MkEnv = (() => {
 
   const MODEL_PATH = 'http://localhost:3000/mobilenet/model.json';
 
-  const THRESHOLD = 0.5;
-  const TOP_N = 2;
   const SLEEP_MS = 120;
   const FIGHTERS = [{ name: 'Subzero' }, { name: 'Kano' }];
 
   class MultiPlayer {
-    constructor(fighters=FIGHTERS) {
+    constructor(fighters) {
+      this.fighters = fighters 
+        || (Math.random() < 0.5 ? FIGHTERS : FIGHTERS.reverse());
       this.done = true;
       this.reward = {subzero: 0, kano: 0};
       this.options = makeOptions(
         (rewards) => this.__onAttack__(rewards),
         (rewards) => this.__gameEnd__(rewards),
-        fighters,
+        this.fighters,
       );
       this.inputSize = STATE_SHAPE;
-      this.outputSize = KEYS.length;
+      this.outputSize = MOVES.length;
       this.sleep = SLEEP_MS;
     }
 
@@ -190,7 +221,7 @@ const MkEnv = (() => {
           done: this.done,
         };
       }
-      const keyCodes = getKeyCodes(action, THRESHOLD, TOP_N);
+      const keyCodes = getKeyCodes(action);
       keyCodes.forEach(keyCode => dispatch('keydown', keyCode));
       await sleep(this.sleep);
       keyCodes.forEach(keyCode => dispatch('keyup', keyCode));
@@ -207,25 +238,8 @@ const MkEnv = (() => {
           console.log('Victory by points: SUBZERO');
         }
       }
-      //  else if (!this.reward.subzero && !this.reward.kano) {
-      //   const subzeroX = mk.game.fighters[0]._position.x;
-      //   const kanoX = mk.game.fighters[1]._position.x;
-      //   // Closing distance reward
-
-      //   if (Math.abs(subzeroX-this.subzeroX) > 10
-      //       && Math.abs()) {
-      //     this.reward.subzero = 0.005;
-      //   }
-        
-        
-      //   if (this.stalling < 0) {
-      //     this.done =true;
-      //     this.reward = {subzero: -1, kano: -1};
-      //     console.log('Defeat by stalling: MUTUAL');
-      //   }
-      // }
       const reward = this.reward;
-      this.reward = {subzero: 0, kano: 0};      
+      this.reward = {subzero: -0.005, kano: -0.005};      
       return {
         observation: await getState(this.model),
         reward,
@@ -250,7 +264,7 @@ const MkEnv = (() => {
         this.gameEnd = true;
         if (reward.kano > reward.subzero) {
           console.log('Victory by KO: KANO');
-        } else {
+        } else if (reward.kano < reward.subzero){
           console.log('Victory by KO: SUBZERO');
         }        
       }

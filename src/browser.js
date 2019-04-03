@@ -4,9 +4,11 @@ import RandomSearch from './agents/random.search';
 import HillClimbing from './agents/hill.climbing';
 import DDPG from './agents/ddpg';
 import OUNoise from './lib/ounoise';
+import * as Util from './lib/util';
 
 const lib = {
   OUNoise,
+  Util,
 }
 export {
   ARS,

@@ -5,10 +5,12 @@ import HillClimbing from './agents/hill.climbing';
 import DDPG from './agents/ddpg';
 import OUNoise from './lib/ounoise';
 import FileBuffer from './lib/file.buffer';
+import * as Util from './lib/util';
 
 const lib = {
   OUNoise,
   FileBuffer,
+  Util,
 }
 export {
   ARS,

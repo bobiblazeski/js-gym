@@ -6,7 +6,7 @@ const app = express();
 const server = require('http').Server(app);
 const io = require('socket.io')(server);
 const argv = require('minimist')(process.argv.slice(2));
-
+const N = require('nial');
 app.use(express.static(path.join(__dirname, '../static/')));
 
 const PORT = 3000;
@@ -14,7 +14,7 @@ const PORT = 3000;
 const tf = require('@tensorflow/tfjs-node');
 const {
   DDPG, 
-  lib: {FileBuffer},
+  lib: {FileBuffer, OUNoise, Util},
 } = require('../dist/agents.node');
 
 const {actor, critic} = require('./mk/model')(tf);
@@ -24,12 +24,20 @@ const {
   KANO, 
   SUBZERO,
 } = require('./mk/constants');
+const subzeroBuffer = new FileBuffer(SUBZERO.batchSize, SUBZERO.bufferPath);
 const kanoBuffer = new FileBuffer(KANO.batchSize, KANO.bufferPath);
 
 const kanoAgent = new DDPG(ACTION_SIZE, actor, critic, DDPG_HP, kanoBuffer);
-const subzeroBuffer = new FileBuffer(SUBZERO.batchSize, SUBZERO.bufferPath);
 const subzeroAgent = new DDPG(ACTION_SIZE, actor, critic, DDPG_HP, subzeroBuffer);
 
+const arrSum = arr => arr.reduce((a,b) => a + b, 0);
+
+const normalize = arr => {
+  const sum = arrSum(arr) / 10;
+  return arr.map(d => d / sum);
+}
+
+const prepare = arr => normalize(N.clip(arr, 0, 1));
 
 const WEIGHTS_FOLDER = `${process.cwd()}/save/weights/`;
 
@@ -47,18 +55,41 @@ if (argv.subzero || argv.kano) {
   server.listen(PORT, () => console.log(`Listening on ${PORT}`));
 }
 
-io.on('connection', function (socket) {  
+io.on('connection', function (socket) {
+  const subzeroNoise = new OUNoise(ACTION_SIZE);
+  const kanoNoise = new OUNoise(ACTION_SIZE);  
+
   console.log('connection');
-  socket.on('act', function (state) {
-    const train = false;
+  socket.on('act', function (state, train) {
+    const [trainSubzero, trainKano] = [
+      Math.random() < 0.5,
+      Math.random() < 0.5
+    ];
     Promise.all([
-      kanoAgent.act(state, train),
-      subzeroAgent.act(state, train),
+      kanoAgent.act(state, false),
+      subzeroAgent.act(state, false),
     ]).then(actions => {
-      const [kano, subzero] = actions;      
+      const [kano, subzero] = actions;     
       const action = {kano, subzero};
+      //console.log(N.sub(kano, subzero).map(d => d.toFixed(2)));
+      if (train && trainSubzero) {
+        const subzeroEpsilon = subzeroAgent.epsilon;
+        const subzeroSample = prepare(subzeroNoise.sample());
+        action.subzero = N.add(
+          N.mul(action.subzero, 1- subzeroEpsilon),
+          N.mul(subzeroSample, subzeroEpsilon));
+      }
+      if (train && trainKano) {
+        const kanoEpsilon = kanoAgent.epsilon;        
+        const kanoSample = prepare(kanoNoise.sample());
+        
+        action.kano = N.add(
+          N.mul(action.kano, 1- kanoEpsilon),
+          N.mul(kanoSample, kanoEpsilon));
+      }
       // console.log(kano.map(d =>  d.toFixed(2)));
       // console.log(subzero.map(d =>  d.toFixed(2)));
+      // console.log(action.kano);
       socket.emit('action', action);
     });
   });

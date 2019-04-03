@@ -13,10 +13,10 @@ const sample = (array, size) => {
 
 const sigmoid = t =>  1/(1+Math.pow(Math.E, -t));
 
-function softmax(arr) {
-  return arr.map(function(value,index) { 
-    return Math.exp(value) / arr.map( function(y /*value*/){ return Math.exp(y) } ).reduce( function(a,b){ return a+b })
-  })
+const softmax = arr => {
+  const C = Math.max(...arr);
+  const d = arr.map(y => Math.exp(y - C)).reduce((a, b) => a + b);
+  return arr.map(value => Math.exp(value - C) / d);
 }
 
 export {sample, sigmoid, softmax};

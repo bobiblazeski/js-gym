@@ -491,11 +491,19 @@ const sample = (array, size) => {
   return results;
 };
 
-function softmax(arr) {
-  return arr.map(function(value,index) { 
-    return Math.exp(value) / arr.map( function(y /*value*/){ return Math.exp(y) } ).reduce( function(a,b){ return a+b })
-  })
-}
+const sigmoid = t =>  1/(1+Math.pow(Math.E, -t));
+
+const softmax = arr => {
+  const C = Math.max(...arr);
+  const d = arr.map(y => Math.exp(y - C)).reduce((a, b) => a + b);
+  return arr.map(value => Math.exp(value - C) / d);
+};
+
+var Util = /*#__PURE__*/Object.freeze({
+  sample: sample,
+  sigmoid: sigmoid,
+  softmax: softmax
+});
 
 class ReplayBuffer {
   constructor(bufferSize, batchSize) {
@@ -608,9 +616,7 @@ class DDPG {
     const action = tf.tidy(() => {
       let action = tf.squeeze(this.actor.predict(tf.tensor([state])));
       if (train) {
-        const rawNoise = this.noise.sample();
-        const noise = softmax(rawNoise.slice(0, 4))
-          .concat(softmax(rawNoise.slice(4, 9)));        
+        const noise = softmax(this.noise.sample());        
         action = action.mul(1-this.epsilon).add(tf.mul(noise, this.epsilon));
       }
       return action;
@@ -626,17 +632,14 @@ class DDPG {
   async step (envStep, other) {
     const {prevState, action, reward, observation, done} = envStep;
     const {stepNo} = other;
-    this.buffer.add(prevState, action, reward, observation, done, other);
-    if (this.buffer.length > this.minBufferSize 
-        && stepNo !== 0 && stepNo % this.updateEvery === 0) {        
+    this.buffer.add(prevState, action, reward, observation, done, other);    
+    if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
       console.log('load episodes');
       const episodes = await this.buffer.sample();
-      console.log('start learning');
       for (let i = 0; i < 3; ++i) {
         this.learn(episodes, GAMMA);
       }
-      console.log('finished learning');
-      console.log('Epsilon', this.epsilon);
+      console.log('Epsilon', this.epsilon.toFixed(2));
     }          
   }
 
@@ -764,6 +767,7 @@ class FileBuffer {
 const lib = {
   OUNoise,
   FileBuffer,
+  Util,
 };
 
 exports.ARS = ARS;

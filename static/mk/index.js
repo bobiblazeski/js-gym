@@ -37,12 +37,12 @@
     return {maxReward};
   };
 
-
+  const train = true;
   const deferred = {act:{}, step: {}};
   
   const act = async (state) => {
     return new Promise((resolve, reject) => {
-      socket.emit('act', state);
+      socket.emit('act', state, train);
       deferred.act.resolve = resolve;
       deferred.act.reject = reject;
     });
