@@ -5,19 +5,17 @@
     const outputSize = env.outputSize;
     let maxReward = -Infinity;
     const uid = new ShortUniqueId();
-    for (const epNo of N.til(maxEpisodes)) {
-      const remoteAgent = false;// Math.random() < 0.5;
-      console.log('remoteAgent',remoteAgent);
+    for (const epNo of N.til(maxEpisodes)) {      
       let epId = uid.randomUUID(14);
       let epReward = {kano: 0, subzero:0}, observation, reward, done;    
-      observation = await env.reset();
+      observation = await env.reset();      
       let stepNo = 0, startDate = new Date();
       while (stepNo < maxSteps && !done) {
         let action = await act(observation);
         
         if (env.done) break;
         const prevState = observation;
-        ({observation, reward, done} = await env.step(action));        
+        ({observation, reward, done} = await env.step(action));
         //console.log(`${epNo} ${stepNo} ${sameArray(prevState, observation)}`);
         done = done ? 1. : 0.;             
         epReward.kano += reward.kano;
@@ -30,13 +28,12 @@
       console.log(`Ep:${epNo}, Kano: ${epReward.kano.toFixed(2)}`,
         `Subzero:${epReward.subzero.toFixed(2)}`,
         `Step: ${stepNo} Time ${new Date() - startDate}`);   
-    }
-    sleep(5000);
-    location.reload();
+    }    
+    setInterval(() => location.reload(), 3000);
     return {maxReward};
   };
 
-  const train = true;
+  const train = false;
   const deferred = {act:{}, step: {}};
   
   const act = async (state) => {

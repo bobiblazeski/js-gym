@@ -71,16 +71,29 @@ const MkEnv = (() => {
     "SQUAT_LOW_PUNCH",
   ];
   
+  const getRandom = () => {
+    let random = Math.random();
+    return function(move) {
+      random -= move;
+      return random <= 0;
+    };
+  }
+
+  const arrSum = arr => arr.reduce((a,b) => a + b, 0);
+
+  const weightedRandom = action => {    
+    return action.findIndex(getRandom(arrSum(action)));
+  }
   
   const getKeyCodes = action => {
-    const subzeroChoice = MOVES[argMax(action.subzero)];
-    const kanoChoice = MOVES[argMax(action.kano)];
+    const subzeroChoice = MOVES[weightedRandom(action.subzero)];
+    const kanoChoice = MOVES[weightedRandom(action.kano)];
     console.log(`subzero: ${subzeroChoice}, kano: ${kanoChoice}`);
     const subzeroKeyCodes = MOVES_MAP[subzeroChoice].map(k => KEY_CODES.subzero[k]);
     const kanoKeyCodes = MOVES_MAP[kanoChoice].map(k => KEY_CODES.kano[k]);
     return subzeroKeyCodes.concat(kanoKeyCodes);
   }
-
+  
   const ARENAS = Object.values(mk.arenas.types);
 
   const randomArena = ()  => ARENAS[Math.floor(Math.random() * ARENAS.length)];
@@ -170,23 +183,24 @@ const MkEnv = (() => {
   const getFighter = (index) => {
     const fighter = mk.game.fighters[index];
     return [
-      fighter._height / 60,
       fighter._life / 100,
-      fighter._orientation === 'left' ? 1 : 0,
       fighter._position.x / 600,
       fighter._position.y / 400,
+      fighter._height / 60,            
       fighter._width / 30, 
     ];
   }
-  const getFrame = () => {
-    return getFighter(0).concat(getFighter(1));
+  const getState = (stepNo) => {
+    return [stepNo/MAX_STEPS].concat(getFighter(0), getFighter(1));
   }
-  const MAX_STEPS = 200;
+  const MAX_STEPS = 400;
 
   const MODEL_PATH = 'http://localhost:3000/mobilenet/model.json';
 
   const SLEEP_MS = 80;
   const FIGHTERS = [{ name: 'Subzero' }, { name: 'Kano' }];
+  const STALL_LEEWAY = 30;
+
 
   class MultiPlayer {
     constructor(fighters) {
@@ -215,37 +229,28 @@ const MkEnv = (() => {
       this.subzeroHealth = 100;
       this.kanoHealth = 100;
       this.stepNo = 0;
-      this.gameEnd = false;
-      this.subzeroX = mk.game.fighters[0]._position.x;
-      this.kanoX = mk.game.fighters[1]._position.x;
-      const frame = getFrame();
-      const frames = [frame, frame, frame];
-      return frames.flat();
+      this.gameEnd = false;            
+      return getState(this.stepNo);
     }
 
-    async step(action) {
-      const frame = getFrame();
-      const frames = [frame, frame, frame];
+    async step(action) {      
       if (this.done) {
         throw 'Trying to step into done environment';
       } else if (this.gameEnd) {
         console.log('Game End.');
         this.done = true;
-        frames[2] = getFrame();
+        //console.log(frames);
         return {
-          observation: frames.flat(),
+          observation: getState(this.stepNo),
           reward: this.reward,
           done: this.done,
         };
       }
-      const keyCodes = getKeyCodes(action);
+      const keyCodes = getKeyCodes(action);      
       keyCodes.forEach(keyCode => dispatch('keydown', keyCode));
-      frames[1] = getFrame();
       await sleep(this.sleep);
-      keyCodes.forEach(keyCode => dispatch('keyup', keyCode));
-      await sleep(this.sleep);
-      frames[2] = getFrame();
-      if (++this.stepNo >= MAX_STEPS && !this.done) {
+      keyCodes.forEach(keyCode => dispatch('keyup', keyCode));      
+      if (this.stepNo >= MAX_STEPS && !this.done) {
         this.done = true;
         // Victory by points
         if (this.kanoHealth > this.subzeroHealth) {
@@ -256,12 +261,19 @@ const MkEnv = (() => {
           this.reward.kano += -1;
           this.reward.subzero += +1; 
           console.log('Victory by points: SUBZERO');
+        } else if (this.kanoHealth + this.subzeroHealth === 200) {
+          this.reward.kano = -1;
+          this.reward.subzero = -1;
+          console.log('Defeat by stalling: BOTH');
         }
-      }
+      }      
       const reward = this.reward;
-      this.reward = {subzero: -0.005, kano: -0.005};      
+      if (!this.reward.subzero && !this.reward.kano) {
+        ++this.stepNo;
+      }
+      this.reward = {subzero: 0, kano: 0};      
       return {
-        observation: frames.flat(),
+        observation: getState(this.stepNo),
         reward,
         done: this.done,
       };

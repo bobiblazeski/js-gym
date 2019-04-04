@@ -635,7 +635,7 @@
       if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
         const episodes = await this.buffer.sample();
         this.learn(episodes, GAMMA);
-        console.log('Epsilon', this.epsilon.toFixed(2));
+        console.log('Epsilon', this.epsilon.toFixed(3));
       }          
     }
 

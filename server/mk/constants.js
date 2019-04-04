@@ -1,11 +1,11 @@
 module.exports = {
-  STATE_SIZE: 36,// 3*2*6=36
+  STATE_SIZE: 11,// 3*2*6=36
   ACTION_SIZE: 18,
   DDPG_HP: {
     minBufferSize: 64,
     updateEvery: 200,
     batchSize: 64,
-    epsilon: 0.95,
+    epsilon: 0.90,
     epsilonDecay: 1e-3,
     minEpsilon: 0.05,
   },
