@@ -151,33 +151,46 @@ const MkEnv = (() => {
 
   const STATE_SHAPE = [96, 96];
 
-  const getState = async (model) => {
-    const result = tf.tidy(() => {
-      const gameCanvas = document.getElementById('mk');
-      const iData = tf.browser.fromPixels(gameCanvas, 3);
-      const resized = tf.image.resizeBilinear(iData, STATE_SHAPE).toFloat();
-      // Normalize the image
-      const offset = tf.scalar(255.0);
-      const normalized = tf.scalar(1.0).sub(resized.div(offset));
+  // const getState = async (model) => {
+  //   const result = tf.tidy(() => {
+  //     const gameCanvas = document.getElementById('mk');
+  //     const iData = tf.browser.fromPixels(gameCanvas, 3);
+  //     const resized = tf.image.resizeBilinear(iData, STATE_SHAPE).toFloat();
+  //     // Normalize the image
+  //     const offset = tf.scalar(255.0);
+  //     const normalized = tf.scalar(1.0).sub(resized.div(offset));
 
-      const features =model.predict(normalized.expandDims(0));
-      return features.reshape([11520]); // 3*3*1280=11520
-    });
-    const data = await result.data();
-    return Array.from(data);    
-  };
+  //     const features =model.predict(normalized.expandDims(0));
+  //     return features.reshape([11520]); // 3*3*1280=11520
+  //   });
+  //   const data = await result.data();
+  //   return Array.from(data);    
+  // };
 
+  const getFighter = (index) => {
+    const fighter = mk.game.fighters[index];
+    return [
+      fighter._height / 60,
+      fighter._life / 100,
+      fighter._orientation === 'left' ? 1 : 0,
+      fighter._position.x / 600,
+      fighter._position.y / 400,
+      fighter._width / 30, 
+    ];
+  }
+  const getFrame = () => {
+    return getFighter(0).concat(getFighter(1));
+  }
   const MAX_STEPS = 200;
 
   const MODEL_PATH = 'http://localhost:3000/mobilenet/model.json';
 
-  const SLEEP_MS = 120;
+  const SLEEP_MS = 80;
   const FIGHTERS = [{ name: 'Subzero' }, { name: 'Kano' }];
 
   class MultiPlayer {
     constructor(fighters) {
-      this.fighters = fighters 
-        || (Math.random() < 0.5 ? FIGHTERS : FIGHTERS.reverse());
+      this.fighters = fighters || FIGHTERS;
       this.done = true;
       this.reward = {subzero: 0, kano: 0};
       this.options = makeOptions(
@@ -205,26 +218,33 @@ const MkEnv = (() => {
       this.gameEnd = false;
       this.subzeroX = mk.game.fighters[0]._position.x;
       this.kanoX = mk.game.fighters[1]._position.x;
-      const state = await getState(this.model);      
-      return state;
+      const frame = getFrame();
+      const frames = [frame, frame, frame];
+      return frames.flat();
     }
 
     async step(action) {
+      const frame = getFrame();
+      const frames = [frame, frame, frame];
       if (this.done) {
         throw 'Trying to step into done environment';
       } else if (this.gameEnd) {
         console.log('Game End.');
         this.done = true;
+        frames[2] = getFrame();
         return {
-          observation: await getState(this.model),
+          observation: frames.flat(),
           reward: this.reward,
           done: this.done,
         };
       }
       const keyCodes = getKeyCodes(action);
       keyCodes.forEach(keyCode => dispatch('keydown', keyCode));
+      frames[1] = getFrame();
       await sleep(this.sleep);
       keyCodes.forEach(keyCode => dispatch('keyup', keyCode));
+      await sleep(this.sleep);
+      frames[2] = getFrame();
       if (++this.stepNo >= MAX_STEPS && !this.done) {
         this.done = true;
         // Victory by points
@@ -241,7 +261,7 @@ const MkEnv = (() => {
       const reward = this.reward;
       this.reward = {subzero: -0.005, kano: -0.005};      
       return {
-        observation: await getState(this.model),
+        observation: frames.flat(),
         reward,
         done: this.done,
       };

@@ -633,11 +633,8 @@
       const {stepNo} = other;
       this.buffer.add(prevState, action, reward, observation, done, other);    
       if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
-        console.log('load episodes');
         const episodes = await this.buffer.sample();
-        for (let i = 0; i < 3; ++i) {
-          this.learn(episodes, GAMMA);
-        }
+        this.learn(episodes, GAMMA);
         console.log('Epsilon', this.epsilon.toFixed(2));
       }          
     }

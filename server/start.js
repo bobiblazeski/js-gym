@@ -14,21 +14,17 @@ const PORT = 3000;
 const tf = require('@tensorflow/tfjs-node');
 const {
   DDPG, 
-  lib: {FileBuffer, OUNoise, Util},
+  lib: {OUNoise},
 } = require('../dist/agents.node');
 
 const {actor, critic} = require('./mk/model')(tf);
 const {
   ACTION_SIZE, 
-  DDPG_HP, 
-  KANO, 
-  SUBZERO,
+  DDPG_HP,
 } = require('./mk/constants');
-const subzeroBuffer = new FileBuffer(SUBZERO.batchSize, SUBZERO.bufferPath);
-const kanoBuffer = new FileBuffer(KANO.batchSize, KANO.bufferPath);
 
-const kanoAgent = new DDPG(ACTION_SIZE, actor, critic, DDPG_HP, kanoBuffer);
-const subzeroAgent = new DDPG(ACTION_SIZE, actor, critic, DDPG_HP, subzeroBuffer);
+const kanoAgent = new DDPG(ACTION_SIZE, actor, critic, DDPG_HP);
+const subzeroAgent = new DDPG(ACTION_SIZE, actor, critic, DDPG_HP);
 
 const arrSum = arr => arr.reduce((a,b) => a + b, 0);
 

@@ -19,7 +19,6 @@
         const prevState = observation;
         ({observation, reward, done} = await env.step(action));        
         //console.log(`${epNo} ${stepNo} ${sameArray(prevState, observation)}`);
-        
         done = done ? 1. : 0.;             
         epReward.kano += reward.kano;
         epReward.subzero += reward.subzero;
