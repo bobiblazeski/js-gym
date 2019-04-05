@@ -1,12 +1,11 @@
-const Util = require('./static/lib/util');
+const Util = require('../static/lib/util');
 const N = require('nial');
 const {
   ARS, 
-  DDPG, 
   RandomPlay, 
   RandomSearch, 
   HillClimbing
-} = require('./dist/agents.node');
+} = require('../dist/agents.node');
 
 const start  = async () => {
   if (!Util.socket.connected) {
@@ -81,8 +80,6 @@ const start  = async () => {
 
   console.log('ARS Training');
   await Util.run('BipedalWalker-v2', bipedal(ARS), 100, false);
-  console.log('DDPG Training');
-  await Util.run('BipedalWalker-v2', bipedal(DDPG), 100, false);
 }
 
 start();

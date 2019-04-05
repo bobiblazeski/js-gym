@@ -4,9 +4,9 @@ const model = (tf) => {
   const actor = () => tf.sequential({
     layers: [
       tf.layers.inputLayer({inputShape: STATE_SIZE}),
-      tf.layers.dense({units: 11, activation:'relu'}),
+      tf.layers.dense({units: 47, activation:'relu'}),
       // tf.layers.dropout(0.5),
-      tf.layers.dense({units: 11, activation:'relu'}),
+      tf.layers.dense({units: 32, activation:'relu'}),
       // tf.layers.dropout(0.5),
       tf.layers.dense({units: ACTION_SIZE, activation:'softmax'}),
     ],
@@ -15,9 +15,9 @@ const model = (tf) => {
   const critic = () => {
     const stateInput = tf.input({shape: [STATE_SIZE]});
     const actionInput = tf.input({shape: [ACTION_SIZE]});
-    const d1 = tf.layers.dense({units: 11, activation: 'relu'})
+    const d1 = tf.layers.dense({units: 47, activation: 'relu'})
       .apply(stateInput);
-    const d2 = tf.layers.dense({units: 11, activation: 'relu'})
+    const d2 = tf.layers.dense({units: 32, activation: 'relu'})
       .apply(d1);
     const d3 = tf.layers.dense({units: ACTION_SIZE,
       activation: 'softmax'}).apply(d2);

@@ -1,22 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<link rel="icon" type="image/icon" href="/static/favicon.ico" />
-<title>Open AI gym with JavaScript</title>
-<script src="https://d3js.org/d3-random.v1.min.js"></script>
-<script src='//cdnjs.cloudflare.com/ajax/libs/superagent/4.1.0/superagent.min.js'></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.slim.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.0.0/dist/tf.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/bobiblazeski/nial@master/dist/nial.umd.js"></script>
-<script src="/static/lib/api.js"></script>
-<script src="/static/lib/util.js"></script>
-<script src="/static/agents.browser.js"></script>
-<script src="/static/index.js"></script>
+    <title>mk.js</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/styles/styles.css" />
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.slim.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/bobiblazeski/nial@master/dist/nial.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/short-unique-id@1.1.1/dist/short-unique-id.min.js"></script>
+    <script src="/src/mk.js"></script>
+    <script src="/dist/agents.browser.js"></script>
 </head>
-
 <body>
-AI gym with JavaScript: Random search
+    <table>
+    <thead>
+        <th>
+            Arena
+        </th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                <div id="parent">
+                    <div id="utils">
+                        <div id="player1Name" class="playerName">Sub-Zero</div>
+                        <div id="player1LifeBar" class="lifebar"><div class="life" id="player1Life"></div></div>
+                        <div id="player2Name" class="playerName">Kano</div>
+                        <div id="player2LifeBar" class="lifebar"><div class="life" id="player2Life"></div></div>
+                    </div>
+                    <div id="arena">
+                    </div>
+                    <div id="loading">
+                        <span class="loadingLabel">Loading...</span>
+                    </div>
+                </div>
+            </td>
+            <td id="webcam-parent">
+            </td>
+        </tr>
+    </tbody>
+    </table>
+    <div class="manual">
+    </div>
+    <script src="/src/mk.env.js"></script>
+    <script src="/src/index.js"></script>
 </body>
-
 </html>

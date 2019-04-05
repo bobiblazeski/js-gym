@@ -18,15 +18,6 @@ export default [
 					'@tensorflow/tfjs': 'tf',
 				},
 			},
-			{
-				name: 'Agents',
-				file: pkg.static,
-				format: 'umd',
-				globals: {
-					'nial': 'N',
-					'@tensorflow/tfjs': 'tf',
-				},
-			}
 		],
 		plugins: [
 			resolve(), // so Rollup can find `ms`

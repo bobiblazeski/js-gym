@@ -1,5 +1,5 @@
 module.exports = {
-  STATE_SIZE: 11,// 3*2*6=36
+  STATE_SIZE: 47, // 1 + 2*5+ 2*18
   ACTION_SIZE: 18,
   DDPG_HP: {
     minBufferSize: 64,

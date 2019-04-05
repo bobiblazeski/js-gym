@@ -84,14 +84,26 @@ const MkEnv = (() => {
   const weightedRandom = action => {    
     return action.findIndex(getRandom(arrSum(action)));
   }
+
+  const oneHotMove = (index=MOVES.length) => {
+    const arr = new Array(MOVES.length).fill(0);
+    if (index < MOVES.length) arr[index] = 1;
+    return arr; 
+  } 
   
   const getKeyCodes = action => {
-    const subzeroChoice = MOVES[weightedRandom(action.subzero)];
-    const kanoChoice = MOVES[weightedRandom(action.kano)];
+    const subzeroIndex = weightedRandom(action.subzero);
+    const kanoIndex = weightedRandom(action.kano);
+    const subzeroChoice = MOVES[subzeroIndex];
+    const kanoChoice = MOVES[kanoIndex];
     console.log(`subzero: ${subzeroChoice}, kano: ${kanoChoice}`);
     const subzeroKeyCodes = MOVES_MAP[subzeroChoice].map(k => KEY_CODES.subzero[k]);
     const kanoKeyCodes = MOVES_MAP[kanoChoice].map(k => KEY_CODES.kano[k]);
-    return subzeroKeyCodes.concat(kanoKeyCodes);
+    return {
+      keyCodes: subzeroKeyCodes.concat(kanoKeyCodes),
+      subzeroIndex,
+      kanoIndex,
+    }
   }
   
   const ARENAS = Object.values(mk.arenas.types);
@@ -150,6 +162,8 @@ const MkEnv = (() => {
       document.getElementById('loading').style.visibility = 'hidden';
       document.getElementById('arena').style.visibility = 'visible';
       document.getElementById('utils').style.visibility = 'visible';
+      setLife(document.getElementById('player1Life'), 100);
+      setLife(document.getElementById('player2Life'), 100);
     });
     await until(() => document.getElementById('mk'), 1000);
 
@@ -162,23 +176,7 @@ const MkEnv = (() => {
     document.dispatchEvent(new KeyboardEvent(typeArg, {keyCode}));
   }
 
-  const STATE_SHAPE = [96, 96];
-
-  // const getState = async (model) => {
-  //   const result = tf.tidy(() => {
-  //     const gameCanvas = document.getElementById('mk');
-  //     const iData = tf.browser.fromPixels(gameCanvas, 3);
-  //     const resized = tf.image.resizeBilinear(iData, STATE_SHAPE).toFloat();
-  //     // Normalize the image
-  //     const offset = tf.scalar(255.0);
-  //     const normalized = tf.scalar(1.0).sub(resized.div(offset));
-
-  //     const features =model.predict(normalized.expandDims(0));
-  //     return features.reshape([11520]); // 3*3*1280=11520
-  //   });
-  //   const data = await result.data();
-  //   return Array.from(data);    
-  // };
+  const STATE_SHAPE = 47; // 1 + 2*5+ 2*18
 
   const getFighter = (index) => {
     const fighter = mk.game.fighters[index];
@@ -190,8 +188,13 @@ const MkEnv = (() => {
       fighter._width / 30, 
     ];
   }
-  const getState = (stepNo) => {
-    return [stepNo/MAX_STEPS].concat(getFighter(0), getFighter(1));
+  const getState = (stepNo, subzeroIndex, kanoIndex) => {
+    return [stepNo/MAX_STEPS].concat(
+      getFighter(0), 
+      getFighter(1),
+      oneHotMove(subzeroIndex),
+      oneHotMove(kanoIndex),
+    );
   }
   const MAX_STEPS = 400;
 
@@ -199,7 +202,6 @@ const MkEnv = (() => {
 
   const SLEEP_MS = 80;
   const FIGHTERS = [{ name: 'Subzero' }, { name: 'Kano' }];
-  const STALL_LEEWAY = 30;
 
 
   class MultiPlayer {
@@ -233,47 +235,44 @@ const MkEnv = (() => {
       return getState(this.stepNo);
     }
 
-    async step(action) {      
+    async step(action) {
+      let keyCodes = [], subzeroIndex, kanoIndex;     
       if (this.done) {
         throw 'Trying to step into done environment';
       } else if (this.gameEnd) {
         console.log('Game End.');
         this.done = true;
-        //console.log(frames);
-        return {
-          observation: getState(this.stepNo),
-          reward: this.reward,
-          done: this.done,
-        };
-      }
-      const keyCodes = getKeyCodes(action);      
-      keyCodes.forEach(keyCode => dispatch('keydown', keyCode));
-      await sleep(this.sleep);
-      keyCodes.forEach(keyCode => dispatch('keyup', keyCode));      
-      if (this.stepNo >= MAX_STEPS && !this.done) {
-        this.done = true;
-        // Victory by points
-        if (this.kanoHealth > this.subzeroHealth) {
-          this.reward.kano = +1;
-          this.reward.subzero += -1;
-          console.log('Victory by points: KANO');
-        } else if (this.kanoHealth < this.subzeroHealth) {
-          this.reward.kano += -1;
-          this.reward.subzero += +1; 
-          console.log('Victory by points: SUBZERO');
-        } else if (this.kanoHealth + this.subzeroHealth === 200) {
-          this.reward.kano = -1;
-          this.reward.subzero = -1;
-          console.log('Defeat by stalling: BOTH');
+      } else {
+        ({keyCodes, subzeroIndex, kanoIndex} = getKeyCodes(action));      
+        keyCodes.forEach(keyCode => dispatch('keydown', keyCode));
+        await sleep(this.sleep);
+        keyCodes.forEach(keyCode => dispatch('keyup', keyCode));      
+        if (this.stepNo >= MAX_STEPS && !this.done) {
+          this.done = true;
+          // Victory by points
+          if (this.kanoHealth > this.subzeroHealth) {
+            this.reward.kano = +1;
+            this.reward.subzero += -1;
+            console.log('Victory by points: KANO');
+          } else if (this.kanoHealth < this.subzeroHealth) {
+            this.reward.kano += -1;
+            this.reward.subzero += +1; 
+            console.log('Victory by points: SUBZERO');
+          } else if (this.kanoHealth + this.subzeroHealth === 200) {
+            this.reward.kano = -1;
+            this.reward.subzero = -1;
+            console.log('Defeat by stalling: BOTH');
+          }
         }
-      }      
+      }
+            
       const reward = this.reward;
       if (!this.reward.subzero && !this.reward.kano) {
         ++this.stepNo;
       }
       this.reward = {subzero: 0, kano: 0};      
       return {
-        observation: getState(this.stepNo),
+        observation: getState(this.stepNo, subzeroIndex, kanoIndex),
         reward,
         done: this.done,
       };

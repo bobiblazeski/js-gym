@@ -1,33 +1,34 @@
-
 const path = require('path');
 const moment = require('moment');
 const express =  require('express');
+const staticFile = require('connect-static-file');
 const app = express();
 const server = require('http').Server(app);
 const io = require('socket.io')(server);
 const argv = require('minimist')(process.argv.slice(2));
 const N = require('nial');
 app.use(express.static(path.join(__dirname, '../static/')));
+app.use('/dist/agents.browser.js',
+  staticFile(process.cwd() + '/dist/agents.browser.js'))
 
 const PORT = 3000;
+const SAVE_WEIGHTS_IN_MS = 240000; // 4 minutes
 
 const tf = require('@tensorflow/tfjs-node');
 const {
-  ARS,
   DDPG, 
   lib: {OUNoise},
 } = require('../dist/agents.node');
 
-const {actor, critic} = require('./mk/model')(tf);
+const {actor, critic} = require('./model')(tf);
 const {
   ACTION_SIZE,
-  STATE_SIZE,
+  //STATE_SIZE,
   DDPG_HP,
-} = require('./mk/constants');
+} = require('./constants');
 
 const kanoDDPG = new DDPG(ACTION_SIZE, actor, critic, DDPG_HP);
 const subzeroDDPG = new DDPG(ACTION_SIZE, actor, critic, DDPG_HP);
-const kanoARS = new ARS(STATE_SIZE, ACTION_SIZE);
 
 const arrSum = arr => arr.reduce((a,b) => a + b, 0);
 
@@ -56,11 +57,7 @@ if (argv.subzero || argv.kano) {
 
 io.on('connection', function (socket) {
   const subzeroNoise = new OUNoise(ACTION_SIZE);
-  const kanoNoise = new OUNoise(ACTION_SIZE);  
-  const [trainSubzero, trainKano] = [ true, true];
-  //   Math.random() < 0.5,
-  //   Math.random() < 0.5
-  // ];
+  const kanoNoise = new OUNoise(ACTION_SIZE);
   console.log('connection');
   socket.on('act', function (state, train) {
     
@@ -70,25 +67,19 @@ io.on('connection', function (socket) {
     ]).then(actions => {
       const [subzero, kano] = actions;     
       const action = {subzero, kano};
-      //console.log(N.sub(kano, subzero).map(d => d.toFixed(2)));
-      if (true /*train && trainSubzero*/) {
+      if (train) {
         const subzeroEpsilon = subzeroDDPG.epsilon;
         const subzeroSample = prepare(subzeroNoise.sample());        
-        // action.subzero = N.add(
-        //   N.mul(action.subzero, 1- subzeroEpsilon),
-        //   N.mul(subzeroSample, subzeroEpsilon));
-        action.subzero = subzeroSample; 
-      }
-      if (false /*train && trainKano*/) {
+        action.subzero = N.add(
+          N.mul(action.subzero, 1- subzeroEpsilon),
+          N.mul(subzeroSample, subzeroEpsilon));
+    
         const kanoEpsilon = kanoDDPG.epsilon;        
         const kanoSample = prepare(kanoNoise.sample());        
         action.kano = N.add(
           N.mul(action.kano, 1- kanoEpsilon),
           N.mul(kanoSample, kanoEpsilon));
       }
-      // console.log(kano.map(d =>  d.toFixed(2)));
-      // console.log(subzero.map(d =>  d.toFixed(2)));
-      // console.log(action.kano);
       socket.emit('action', action);
     });
   });
@@ -105,8 +96,6 @@ io.on('connection', function (socket) {
       reward: envStep.reward.subzero,
       action: envStep.action.subzero,      
     };
-    // console.log(kanoEnvStep);
-    // console.log(subzeroEnvStep);
     Promise.all([
       kanoDDPG.step(kanoEnvStep, other),
       subzeroDDPG.step(subzeroEnvStep, other),
@@ -116,13 +105,15 @@ io.on('connection', function (socket) {
   });
 });
 
+
+
 setInterval(() => {
   const dt = 't' + moment().format('MMDDhhmm');
   const kanoPath = `${WEIGHTS_FOLDER}kano/${dt}`;
   const subzeroPath = `${WEIGHTS_FOLDER}subzero/${dt}`;
   kanoDDPG.save(kanoPath).then(() => console.log(`Saved`, kanoPath));
   subzeroDDPG.save(subzeroPath).then(() => console.log(`Saved`, subzeroPath));
-}, 240000)
+}, SAVE_WEIGHTS_IN_MS)
 
 function loadWeights(argv) {
   const [subzeroWeights, kanoWeights] = argv;

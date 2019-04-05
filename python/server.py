@@ -1,14 +1,16 @@
 # Based on https://github.com/openai/gym-http-api/blob/master/gym_http_server.py
-from flask import Flask, current_app, request, jsonify
+from flask import Flask, current_app, request, jsonify, send_from_directory
 
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 import numpy as np
+import os
 
 from lib.envs import Envs
 from lib.errorhandler import ( InvalidUsage,
                                 get_required_param,
                                 get_optional_param)
+cwd = os.getcwd()
 
 app=Flask(__name__)
 CORS(app)
@@ -137,6 +139,9 @@ def step(data):
       'done': done,
       'info': info} )
 
+@app.route('/dist/agents.browser.js')
+def agents():
+    return send_from_directory(cwd+'/dist/', 'agents.browser.js')
 
 @app.route('/')
 def index():
@@ -146,6 +151,6 @@ def index():
 envs = Envs()
 # start the server with the 'run()' method
 if __name__ == '__main__':
-    print('Open your browser at http://localhost:5000')
+    print('Use Node.js index.js OR open your browser at http://localhost:5000')
     socketio.run(app)
     
