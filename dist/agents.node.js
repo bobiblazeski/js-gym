@@ -636,7 +636,7 @@ class DDPG {
     if (this.buffer.length > this.minBufferSize && stepNo % this.updateEvery === 0) {        
       const episodes = await this.buffer.sample();
       this.learn(episodes, GAMMA);
-      console.log('Epsilon', this.epsilon.toFixed(3));
+      console.log('Epsilon', this.epsilon.toFixed(3), this.buffer.length);
     }          
   }
 

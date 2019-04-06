@@ -1,8 +1,7 @@
 (function () {  
-  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-  
+  const train = {subzero: true, kano: true};
+
   const play = async (env, maxEpisodes,maxSteps) => {
-    const outputSize = env.outputSize;
     let maxReward = -Infinity;
     const uid = new ShortUniqueId();
     for (const epNo of N.til(maxEpisodes)) {      
@@ -11,7 +10,7 @@
       observation = await env.reset();      
       let stepNo = 0, startDate = new Date();
       while (stepNo < maxSteps && !done) {
-        let action = await act(observation);
+        let action = await act(observation, train);
         
         if (env.done) break;
         const prevState = observation;
@@ -32,11 +31,10 @@
     setInterval(() => location.reload(), 3000);
     return {maxReward};
   };
-
-  const train = false;
+  
   const deferred = {act:{}, step: {}};
   
-  const act = async (state) => {
+  const act = async (state, train) => {
     return new Promise((resolve, reject) => {
       socket.emit('act', state, train);
       deferred.act.resolve = resolve;

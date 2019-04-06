@@ -78,7 +78,7 @@ const MkEnv = (() => {
       return random <= 0;
     };
   }
-
+  
   const arrSum = arr => arr.reduce((a,b) => a + b, 0);
 
   const weightedRandom = action => {    
@@ -91,6 +91,21 @@ const MkEnv = (() => {
     return arr; 
   } 
   
+  const outOfBound = d => {
+    if (d < 0 || d > 1) throw 'Out of bounds';
+  }
+
+  const invalidProbability = action => {
+    if (Math.abs(arrSum(action) - 1) > 0.001) {
+      throw 'Moves must sum to one';
+    } 
+  }
+  const checkAction = action => {
+    action.subzero.forEach(outOfBound);
+    action.kano.forEach(outOfBound);
+    invalidProbability(action.subzero);
+    invalidProbability(action.kano);    
+  }
   const getKeyCodes = action => {
     const subzeroIndex = weightedRandom(action.subzero);
     const kanoIndex = weightedRandom(action.kano);
@@ -196,7 +211,7 @@ const MkEnv = (() => {
       oneHotMove(kanoIndex),
     );
   }
-  const MAX_STEPS = 400;
+  const MAX_STEPS = 500;
 
   const MODEL_PATH = 'http://localhost:3000/mobilenet/model.json';
 
@@ -236,6 +251,7 @@ const MkEnv = (() => {
     }
 
     async step(action) {
+      checkAction(action);
       let keyCodes = [], subzeroIndex, kanoIndex;     
       if (this.done) {
         throw 'Trying to step into done environment';
@@ -259,17 +275,24 @@ const MkEnv = (() => {
             this.reward.subzero += +1; 
             console.log('Victory by points: SUBZERO');
           } else if (this.kanoHealth + this.subzeroHealth === 200) {
-            this.reward.kano = -1;
-            this.reward.subzero = -1;
+            this.reward.kano = -0.5;
+            this.reward.subzero = -0.5;
             console.log('Defeat by stalling: BOTH');
+          } else {
+            this.reward.kano = 0.5;
+            this.reward.subzero = 0.5;
+            console.log('Draw: BOTH');
           }
         }
       }
             
       const reward = this.reward;
-      if (!this.reward.subzero && !this.reward.kano) {
-        ++this.stepNo;
-      }
+      ++this.stepNo;
+      // if (!this.reward.subzero && !this.reward.kano) {
+      //   ++this.stepNo;
+      // } else {
+      //   --this.stepNo;
+      // }
       this.reward = {subzero: 0, kano: 0};      
       return {
         observation: getState(this.stepNo, subzeroIndex, kanoIndex),
@@ -280,8 +303,8 @@ const MkEnv = (() => {
 
     __onAttack__(reward) {
       if (!this.done) {
-        this.reward.kano += reward.kano;
-        this.reward.subzero += reward.subzero;        
+        // this.reward.kano += reward.kano;
+        // this.reward.subzero += reward.subzero;        
         this.subzeroHealth = reward.subzeroHealth;
         this.kanoHealth = reward.kanoHealth;   
       }

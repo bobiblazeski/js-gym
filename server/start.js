@@ -58,23 +58,25 @@ if (argv.subzero || argv.kano) {
 io.on('connection', function (socket) {
   const subzeroNoise = new OUNoise(ACTION_SIZE);
   const kanoNoise = new OUNoise(ACTION_SIZE);
+  const subzeroEpsilon = 0;//subzeroDDPG.epsilon;
+  const kanoEpsilon = kanoDDPG.epsilon;        
+  
   console.log('connection');
   socket.on('act', function (state, train) {
-    
+
     Promise.all([
       subzeroDDPG.act(state, false),
       kanoDDPG.act(state, false),
     ]).then(actions => {
       const [subzero, kano] = actions;     
       const action = {subzero, kano};
-      if (train) {
-        const subzeroEpsilon = subzeroDDPG.epsilon;
+      if (train.subzero) {        
         const subzeroSample = prepare(subzeroNoise.sample());        
         action.subzero = N.add(
           N.mul(action.subzero, 1- subzeroEpsilon),
           N.mul(subzeroSample, subzeroEpsilon));
-    
-        const kanoEpsilon = kanoDDPG.epsilon;        
+      }
+      if (train.kano) {  
         const kanoSample = prepare(kanoNoise.sample());        
         action.kano = N.add(
           N.mul(action.kano, 1- kanoEpsilon),
