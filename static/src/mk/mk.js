@@ -8,7 +8,7 @@
   };
 
   mk.config = {
-    IMAGES       : '/images/',
+    IMAGES       : '/images/mk/',
     ARENAS       : 'arenas/',
     FIGHTERS     : 'fighters/',
     STEP_DURATION: 80,

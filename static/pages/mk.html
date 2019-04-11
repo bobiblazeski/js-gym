@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>mk.js</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/styles/mk.css" />
+    <script src="//cdnjs.cloudflare.com/ajax/libs/socket.io/2.2.0/socket.io.slim.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/bobiblazeski/nial@master/dist/nial.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/short-unique-id@1.1.1/dist/short-unique-id.min.js"></script>
+    <script src="/src/mk/mk.js"></script>
+    <script src="/dist/agents.browser.js"></script>
+</head>
+<body>
+    <table>
+    <thead>
+        <th>
+            Arena
+        </th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+                <div id="parent">
+                    <div id="utils">
+                        <div id="player1Name" class="playerName">Sub-Zero</div>
+                        <div id="player1LifeBar" class="lifebar"><div class="life" id="player1Life"></div></div>
+                        <div id="player2Name" class="playerName">Kano</div>
+                        <div id="player2LifeBar" class="lifebar"><div class="life" id="player2Life"></div></div>
+                    </div>
+                    <div id="arena">
+                    </div>
+                    <div id="loading">
+                        <span class="loadingLabel">Loading...</span>
+                    </div>
+                </div>
+            </td>
+            <td id="webcam-parent">
+            </td>
+        </tr>
+    </tbody>
+    </table>
+    <div class="manual">
+    </div>
+    <script src="/src/mk/mk.env.js"></script>
+    <script src="/src/mk/mk.example.js"></script>
+</body>
+</html>
