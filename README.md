@@ -42,6 +42,9 @@ You can open your browser at http://localhost:3000/
 
 Adaptation of https://github.com/mgechev/mk.js
 
+![MK running](/images/mk.gif)
+
+
 #### Action space
 
 Action is an object containing two keys, subzero & kano.
@@ -59,6 +62,8 @@ a move for your agent. Unless you pass one hot action.
 
 ### TetNet
 Adaptation of https://github.com/IdreesInc/TetNet
+
+![TetNet running](/images/tetnet.gif)
 
 #### Action space
 Integer in  the range of [0, 11).
