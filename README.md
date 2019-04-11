@@ -36,10 +36,13 @@ You can open your browser at http://localhost:3000/
 4. Augmented Random Search
 5. Deep Deterministic Policy Gradient
 
-## Environment
-Currently only supports https://github.com/mgechev/mk.js
+## Environments
 
-### Action space
+### MK
+
+Adaptation of https://github.com/mgechev/mk.js
+
+#### Action space
 
 Action is an object containing two keys, subzero & kano.
 Each key contains an array of 18 probabilities which 
@@ -49,8 +52,17 @@ The sum of all actions should be ~1.
 The environment is stochastic, and uses weighted random choice to select
 a move for your agent. Unless you pass one hot action.
 
-### State space
+#### State space
 
 47 floating numbers between 0 & 1
 
+
+### TetNet
+Adaptation of https://github.com/IdreesInc/TetNet
+
+#### Action space
+Integer in  the range of [0, 11).
+
+#### State space
+Javascript object containing information about the game.
 
